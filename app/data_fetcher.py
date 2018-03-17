@@ -81,7 +81,8 @@ class DataFetcher:
         :return: a list of tuples with each word and its respective POS tag: [('word','POS_tag')]
         """
         sent = list()
-        for word in conllu_sent[0][0]:
+        sent_dict = conllu_sent[0]
+        for word in sent_dict:
             sent.append((word['lemma'], word['xpostag']))
 
         return sent
