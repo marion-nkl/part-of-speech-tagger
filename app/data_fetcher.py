@@ -92,10 +92,26 @@ class DataFetcher:
                 parsed_data = parse(sentence)
                 sentence_list = list()
                 for word in parsed_data[0]:
-                    sentence_list.append((word['lemma'], word['xpostag']))
+                    sentence_list.append((word['lemma'], word['upostag']))
                 data_list.append(sentence_list)
 
         return data_list
+
+    @staticmethod
+    def pre_processing(data):
+        """
+        Implements pre-processing on a given dataset
+        :param data: a list of tuples with each word and its respective POS tag: [('word','POS_tag')]
+        :return: a list of tuples with each preprocessed word and its respective POS tag: [('word','POS_tag')]
+        """
+        processed_data = list()
+        for sentence in data:
+            if sentence:
+                for t in sentence:
+                    x = t[0].strip().lower()
+                    processed_data.append((x, t[1]))
+
+        return processed_data
 
 
 if __name__ == '__main__':
