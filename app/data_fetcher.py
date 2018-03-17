@@ -90,6 +90,7 @@ class DataFetcher:
                     sentence_list.append((word['lemma'], word['xpostag']))
                 data_list.append(sentence_list)
 
+
         return data_list
 
 
