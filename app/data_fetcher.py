@@ -68,8 +68,8 @@ class DataFetcher:
         data = dict()
         for file in files_list:
             path = join(DATA_DIR, 'en-ud-{}.conllu'.format(file))
-            with open(path, 'r') as f:
-                data[file] = f.read() .split('\n\n')
+            with open(path, 'r', encoding='utf8') as f:
+                data[file] = f.read().split('\n\n')
 
         return data
 
