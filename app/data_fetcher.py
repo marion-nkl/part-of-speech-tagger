@@ -66,11 +66,11 @@ class DataFetcher:
         :return: a list of strings with the .conllu format for each sentence
         """
         data = dict()
+        delimeter = '# sent_id'
         for file in files_list:
             path = join(DATA_DIR, 'en-ud-{}.conllu'.format(file))
             with open(path, 'r', encoding='utf8') as f:
-                data[file] = f.read().split('\n\n')
-
+                data[file] = f.read().replace('# sent_id', '\n# sent_id').replace('|', '').split('\n\n')
         return data
 
     @staticmethod
@@ -94,8 +94,10 @@ if __name__ == '__main__':
     data = DataFetcher.read_data(files)
 
     data_set = list()
+
     for sentence in data['train']:
-        parsed_data = parse(sentence)
-        data_set.append(DataFetcher.parse_conllu(parsed_data))
+        if sentence != '':
+            parsed_data = parse(sentence)
+            data_set.append(DataFetcher.parse_conllu(parsed_data))
 
     print(len(data_set))
