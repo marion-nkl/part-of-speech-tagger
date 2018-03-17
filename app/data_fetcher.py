@@ -90,10 +90,11 @@ class DataFetcher:
         for sentence in data:
             if sentence:
                 parsed_data = parse(sentence)
-                sententce_list = list()
+                sentence_list = list()
                 for word in parsed_data[0]:
-                    sententce_list.append((word['lemma'], word['xpostag']))
-                data_list.append(sententce_list)
+                    sentence_list.append((word['lemma'], word['xpostag']))
+                data_list.append(sentence_list)
+
 
         return data_list
 
