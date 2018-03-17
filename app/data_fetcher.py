@@ -79,29 +79,35 @@ class DataFetcher:
         return data_dict
 
     @staticmethod
-    def parse_conllu(conllu_sent):
+    def parse_conllu(data):
         """
         Parses a .conllu format sentence and keep each word with the respective POS tag
         :param conllu_sent: dict with conllu tags
         :return: a list of tuples with each word and its respective POS tag: [('word','POS_tag')]
         """
-        sent = list()
-        sent_dict = conllu_sent[0]
-        for word in sent_dict:
-            sent.append((word['lemma'], word['xpostag']))
+        data_list = list()
 
-        return sent
+        for sentence in data:
+            if sentence:
+                parsed_data = parse(sentence)
+                sententce_list = list()
+                for word in parsed_data[0]:
+                    sententce_list.append((word['lemma'], word['xpostag']))
+                data_list.append(sententce_list)
+
+        return data_list
 
 
 if __name__ == '__main__':
 
     files = ['train', 'test', 'dev']
-    data = DataFetcher.read_data(files)
 
-    data_set = list()
-    for sentence in data['train']:
-        if sentence:
-            parsed_data = parse(sentence)
-            data_set.append(DataFetcher.parse_conllu(parsed_data))
+    data_dict = DataFetcher.read_data(files)
 
-    print(len(data_set))
+    train_data = DataFetcher.parse_conllu(data_dict['train'])
+    test_data = DataFetcher.parse_conllu(data_dict['test'])
+    dev_data = DataFetcher.parse_conllu(data_dict['dev'])
+
+    print(len(train_data))
+    print(len(test_data))
+    print(len(dev_data))
