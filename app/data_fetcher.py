@@ -59,19 +59,24 @@ class DataFetcher:
         return data
 
     @staticmethod
-    def read_data(files_list):
+    def read_data(files_list=None):
         """
         Reads the data file in a list of strings.
         :param files_list: list of strings with the train, dev and test tags
         :return: a list of strings with the .conllu format for each sentence
         """
-        data = dict()
+
+        if files_list:
+            files_list = ['train', 'dev', 'test']
+
+        data_dict = dict()
         for file in files_list:
             path = join(DATA_DIR, 'en-ud-{}.conllu'.format(file))
-            with open(path, 'r', encoding='utf8') as f:
-                data[file] = f.read().replace('# sent_id', '\n# sent_id').replace('|', '').split('\n\n')
 
-        return data
+            with open(path, 'r', encoding='utf8') as f:
+                data_dict[file] = f.read().replace('# sent_id', '\n# sent_id').replace('|', '').split('\n\n')
+
+        return data_dict
 
     @staticmethod
     def parse_conllu(conllu_sent):
