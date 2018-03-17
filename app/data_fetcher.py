@@ -82,7 +82,7 @@ class DataFetcher:
     def parse_conllu(data):
         """
         Parses a .conllu format sentence and keep each word with the respective POS tag
-        :param conllu_sent: dict with conllu tags
+        :param data: dict with conllu tags
         :return: a list of tuples with each word and its respective POS tag: [('word','POS_tag')]
         """
         data_list = list()
