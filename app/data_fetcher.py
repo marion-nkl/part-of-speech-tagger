@@ -1,4 +1,6 @@
 from conllu import parse
+from app import DATA_DIR
+from os.path import join
 
 
 class DataFetcher:
@@ -57,14 +59,17 @@ class DataFetcher:
         return data
 
     @staticmethod
-    def read_data(path):
+    def read_data(files_list):
         """
         Reads the data file in a list of strings.
-        :param path: str. with the path of the file
+        :param files_list: list of strings with the train, dev and test tags
         :return: a list of strings with the .conllu format for each sentence
         """
-        with open(path, 'r') as file:
-            data = file.read() .split('\n\n')
+        data = dict()
+        for file in files_list:
+            path = join(DATA_DIR, 'en-ud-{}.conllu'.format(file))
+            with open(path, 'r') as f:
+                data[file] = f.read() .split('\n\n')
 
         return data
 
@@ -84,12 +89,11 @@ class DataFetcher:
 
 if __name__ == '__main__':
 
-    path = '/Users/aggelikiromanou/Desktop/MSDS/5_Text_engineering/' \
-           'Assignment_3/part-of-speech-tagger/data/en-ud-train.conllu'
-    train = DataFetcher.read_data(path)
+    files = ['train', 'test', 'dev']
+    data = DataFetcher.read_data(files)
 
     data_set = list()
-    for sentence in train:
+    for sentence in data['train']:
         parsed_data = parse(sentence)
         data_set.append(DataFetcher.parse_conllu(parsed_data))
 
