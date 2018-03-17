@@ -66,7 +66,7 @@ class DataFetcher:
         :return: a list of strings with the .conllu format for each sentence
         """
 
-        if files_list:
+        if files_list is None:
             files_list = ['train', 'dev', 'test']
 
         data_dict = dict()
@@ -100,9 +100,7 @@ class DataFetcher:
 
 if __name__ == '__main__':
 
-    files = ['train', 'test', 'dev']
-
-    data_dict = DataFetcher.read_data(files)
+    data_dict = DataFetcher.read_data()
 
     train_data = DataFetcher.parse_conllu(data_dict['train'])
     test_data = DataFetcher.parse_conllu(data_dict['test'])
