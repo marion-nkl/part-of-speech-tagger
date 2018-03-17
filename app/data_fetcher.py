@@ -69,7 +69,7 @@ class DataFetcher:
         for file in files_list:
             path = join(DATA_DIR, 'en-ud-{}.conllu'.format(file))
             with open(path, 'r', encoding='utf8') as f:
-                data[file] = f.read().split('\n\n')
+                data[file] = f.read().replace('# sent_id', '\n# sent_id').replace('|', '').split('\n\n')
 
         return data
 
