@@ -1,4 +1,4 @@
-from conllu import parse
+import conllu
 from app import DATA_DIR
 from os.path import join
 
@@ -89,10 +89,10 @@ class DataFetcher:
 
         for sentence in data:
             if sentence:
-                parsed_data = parse(sentence)
+                parsed_data = conllu.parse(sentence)
                 sentence_list = list()
                 for word in parsed_data[0]:
-                    sentence_list.append((word['lemma'], word['upostag']))
+                    sentence_list.append((word['lemma'].strip(), word['upostag']))
                 data_list.append(sentence_list)
 
         return data_list
@@ -108,19 +108,18 @@ class DataFetcher:
         for sentence in data:
             if sentence:
                 for t in sentence:
-                    x = t[0].strip().lower()
-                    processed_data.append((x, t[1]))
+                    processed_data.append(t)
 
         return processed_data
 
 
 if __name__ == '__main__':
 
-    data_dict = DataFetcher.read_data()
+    data_d = DataFetcher.read_data()
 
-    train_data = DataFetcher.parse_conllu(data_dict['train'])
-    test_data = DataFetcher.parse_conllu(data_dict['test'])
-    dev_data = DataFetcher.parse_conllu(data_dict['dev'])
+    train_data = DataFetcher.parse_conllu(data_d['train'])
+    test_data = DataFetcher.parse_conllu(data_d['test'])
+    dev_data = DataFetcher.parse_conllu(data_d['dev'])
 
     print(len(train_data))
     print(len(test_data))
