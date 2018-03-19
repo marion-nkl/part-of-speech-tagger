@@ -34,6 +34,8 @@ if __name__ == '__main__':
     data_dict = DataFetcher.read_data()
     train_data = DataFetcher.parse_conllu(data_dict['train'])
     cleaned_train_data = DataFetcher.remove_empty_sentences(train_data)
+    dev = [('This', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP')]
+    test = 'This is a sentence'.split()
 
     hmm_obj = Tagger(cleaned_train_data, 'hmm')
     hmm_obj.fit()
@@ -43,8 +45,10 @@ if __name__ == '__main__':
 
     print('-'*30)
     print('HMM Tagger')
-    print('Tagging with our dataset: {}'.format(hmm_obj.tagger.tag('This is a sentence'.split())))
-    print('Tagging with nltk corpus: {}'.format(hmm_obj_nltk.tagger.tag('This is a sentence'.split())))
+    print('Tagging with our dataset: {}'.format(hmm_obj.tagger.tag(test)))
+    print('Evaluation: {}'.format(hmm_obj.tagger.evaluate([dev])))
+    print('Tagging with nltk corpus: {}'.format(hmm_obj_nltk.tagger.tag(test)))
+    print('Evaluation: {}'.format(hmm_obj_nltk.tagger.evaluate([dev])))
 
     print()
     print()
@@ -57,10 +61,10 @@ if __name__ == '__main__':
 
     print('-'*30)
     print('CRF Tagger')
-    print('Tagging with our dataset: {}'.format(crf_obj.tagger.tag_sents(['This is a sentence'.split()])))
-    print('Tagging with nltk corpus: {}'.format(crf_obj_nltk.tagger.tag_sents(['This is a sentence'.split()])))
-
-    print()
+    print('Tagging with our dataset: {}'.format(crf_obj.tagger.tag_sents([test])))
+    print('Evaluation: {}'.format(crf_obj.tagger.evaluate([dev])))
+    print('Tagging with nltk corpus: {}'.format(crf_obj_nltk.tagger.tag_sents([test])))
+    print('Evaluation: {}'.format(crf_obj_nltk.tagger.evaluate([dev])))
     print()
 
 
