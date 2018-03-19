@@ -3,6 +3,7 @@ import pandas as pd
 from collections import Counter
 from app.evaluation import create_report
 import matplotlib.pyplot as plt
+
 plt.style.use('ggplot')
 pd.set_option('display.expand_frame_repr', False)
 
@@ -66,6 +67,13 @@ def main(n_rarest_words=2500):
     to_plot.reset_index(drop=True, inplace=True)
     to_plot.plot(title='Words Frequency from Most Common to Rarest', grid=True)
     plt.ylabel('Percentage of Occurances')
+    plt.show()
+
+    tags_freqs = test_tuples_df.groupby('y_true').count()['word'] / len(test_tuples_df)
+    tags_freqs *= 100
+    tags_freqs.plot(kind='bar', title='Percentage of Tags on Test set')
+    plt.ylabel('Percentage')
+    plt.xlabel('Pos Tags')
     plt.show()
 
 
