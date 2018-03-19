@@ -10,10 +10,15 @@ def create_report(y_true, y_pred, classes=None):
     :param classes: iterable. An iterable of string or ints.
     :return: dataframe. A pandas dataframe with the confusion matrix.
     """
-    confusion = pd.DataFrame(confusion_matrix(y_true, y_pred),
-                             index=classes,
-                             columns=['pred_{}'.format(c) for c in classes]
-                             )
+
+    if classes:
+        confusion = pd.DataFrame(confusion_matrix(y_true, y_pred),
+                                 index=classes,
+                                 columns=['pred_{}'.format(c) for c in classes])
+
+    else:
+        confusion = pd.DataFrame(confusion_matrix(y_true, y_pred))
+
 
     print("-" * 80, end='\n')
     print("Accuracy Score: {0:.2f}%".format(accuracy_score(y_true, y_pred) * 100))
