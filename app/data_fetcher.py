@@ -92,7 +92,7 @@ class DataFetcher:
                 parsed_data = conllu.parse(sentence)
                 sentence_list = list()
                 for word in parsed_data[0]:
-                    sentence_list.append((word['lemma'].strip(), word['upostag']))
+                    sentence_list.append((word['lemma'].strip(), word['xpostag']))
                 data_list.append(sentence_list)
 
         return data_list
@@ -111,6 +111,31 @@ class DataFetcher:
                     processed_data.append(t)
 
         return processed_data
+
+    @staticmethod
+    def flatten_nested_list(nested_list):
+        """
+        Flattens a nested list to one-level up list
+        :param nested_list: list of lists
+        :return: a flatten list
+        """
+        flat_list = [item for sublist in nested_list for item in sublist]
+
+        return flat_list
+
+    @staticmethod
+    def remove_empty_sentences(sentences):
+        """
+        Parses the list and removes empty sentences
+        :param sentences: list of lists
+        :return: list of lists with no empty sentences
+        """
+        clean_sentences = list()
+        for sentence in sentences:
+            if sentence:
+                clean_sentences.append(sentence)
+
+        return clean_sentences
 
 
 if __name__ == '__main__':
