@@ -66,7 +66,3 @@ if __name__ == '__main__':
     print('Tagging with nltk corpus: {}'.format(crf_obj_nltk.tagger.tag_sents([test])))
     print('Evaluation: {}'.format(crf_obj_nltk.tagger.evaluate([dev])))
     print()
-
-
-
-
