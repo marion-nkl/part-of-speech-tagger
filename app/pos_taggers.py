@@ -1,6 +1,7 @@
 from nltk.corpus import treebank
-from nltk.tag import hmm
 from nltk.tag import CRFTagger
+from nltk.tag import hmm
+
 from app.data_fetcher import DataFetcher
 
 
@@ -29,6 +30,7 @@ class Tagger:
 
         self.tagger = tagger
 
+
 if __name__ == '__main__':
     data = treebank.tagged_sents()[:3000]
     data_dict = DataFetcher.read_data()
@@ -43,7 +45,7 @@ if __name__ == '__main__':
     hmm_obj_nltk = Tagger(data, 'hmm')
     hmm_obj_nltk.fit()
 
-    print('-'*30)
+    print('-' * 30)
     print('HMM Tagger')
     print('Tagging with our dataset: {}'.format(hmm_obj.tagger.tag(test)))
     print('Evaluation: {}'.format(hmm_obj.tagger.evaluate([dev])))
@@ -59,14 +61,10 @@ if __name__ == '__main__':
     crf_obj_nltk = Tagger(data, 'crf')
     crf_obj_nltk.fit()
 
-    print('-'*30)
+    print('-' * 30)
     print('CRF Tagger')
     print('Tagging with our dataset: {}'.format(crf_obj.tagger.tag_sents([test])))
     print('Evaluation: {}'.format(crf_obj.tagger.evaluate([dev])))
     print('Tagging with nltk corpus: {}'.format(crf_obj_nltk.tagger.tag_sents([test])))
     print('Evaluation: {}'.format(crf_obj_nltk.tagger.evaluate([dev])))
     print()
-
-
-
-

@@ -56,7 +56,7 @@ def main(n_rarest_words=2500):
 
     # creating a dataframe with the test words and the true (actual) pos tags.
     test_tuples_df = pd.DataFrame(DataFetcher.pre_processing(test_data), columns=['word', 'y_true'])
-    # predicting the pos tags in order to calculate the accurasy and the classification report
+    # predicting the pos tags in order to calculate the accuracy and the classification report
     test_tuples_df['y_pred'] = test_tuples_df['word'].map(baseline.model)
     # for the unseen words in the test dataset we estimate them by simply implying the most common tag.
     test_tuples_df['y_pred'].fillna(value=baseline.model.get('most_common_tag'), inplace=True)
