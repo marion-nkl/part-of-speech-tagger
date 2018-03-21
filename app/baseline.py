@@ -2,7 +2,7 @@ from collections import Counter
 
 import matplotlib.pyplot as plt
 import pandas as pd
-
+from pprint import pprint
 from app.data_fetcher import DataFetcher
 from app.evaluation import create_report
 
@@ -11,17 +11,16 @@ pd.set_option('display.expand_frame_repr', False)
 
 
 class Baseline:
-    def __init__(self, data):
-        self.data = data
+    def __init__(self):
         self.model = None
 
-    def fit(self):
+    def fit(self, X):
         """
         Fits a baseline model that computes the most frequent POS tag for each word.
         :return: dict with keys the words of the vocabulary of the corpus and as values their POS tag
         """
         # pre processes the data. Splitting in (word, tag) tuples
-        out = DataFetcher.pre_processing(self.data)
+        out = DataFetcher.pre_processing(X)
         # creating a dataframe with word and pos_tag columns.
         df = pd.DataFrame(out, columns=['word', 'pos_tag'])
 
@@ -34,6 +33,28 @@ class Baseline:
         out_dict['most_common_tag'] = df['pos_tag'].mode()[0]
 
         self.model = out_dict
+
+        return self.model
+
+    def predict(self, X):
+        """
+        Predicts the pos tags for a given list of words.
+        :param X:
+        :return:
+        """
+
+        def get_prediction(x):
+            """
+
+            :param x:
+            :return:
+            """
+            if x:
+                return self.model.get(x, self.model.get('most_common_tag'))
+
+            return None
+
+        return list(map(get_prediction, X))
 
 
 def main(n_rarest_words=2500):
@@ -50,22 +71,21 @@ def main(n_rarest_words=2500):
     test_data = DataFetcher.parse_conllu(data_dict['test'])
 
     # concatenates the train and dev sets and feed them to the baseline algorithm.
-    baseline = Baseline(train_data + dev_data)
+    baseline = Baseline()
     # fitting both the train and development data.
-    baseline.fit()
+    baseline.fit(train_data + dev_data)
 
     # creating a dataframe with the test words and the true (actual) pos tags.
     test_tuples_df = pd.DataFrame(DataFetcher.pre_processing(test_data), columns=['word', 'y_true'])
-    # predicting the pos tags in order to calculate the accuracy and the classification report
-    test_tuples_df['y_pred'] = test_tuples_df['word'].map(baseline.model)
-    # for the unseen words in the test dataset we estimate them by simply implying the most common tag.
-    test_tuples_df['y_pred'].fillna(value=baseline.model.get('most_common_tag'), inplace=True)
+
+    # predicting the pos tags in order to calculate the accurasy and the classification report
+    test_tuples_df['y_pred'] = baseline.predict(test_tuples_df['word'])
 
     # extracting the classes of the tags in order to pass it for the classification report.
     classes = sorted(set(test_tuples_df['y_pred']) | set(test_tuples_df['y_pred']))
 
     # creating a report for the whole test dataset.
-    create_report(test_tuples_df['y_true'], test_tuples_df['y_pred'], classes)
+    create_report(test_tuples_df['y_true'], test_tuples_df['y_pred'], None)
 
     # calculating the number (ratio) of each distinct word in the test dataset.
     x = test_tuples_df.groupby(['word']).count() / len(test_tuples_df)
