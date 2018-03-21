@@ -2,7 +2,7 @@ from collections import Counter
 
 import matplotlib.pyplot as plt
 import pandas as pd
-from pprint import pprint
+
 from app.data_fetcher import DataFetcher
 from app.evaluation import create_report
 
