@@ -6,6 +6,7 @@ from numpy import mean
 from pandas import DataFrame
 
 from app import MODELS_DIR
+from app.data_fetcher import DataFetcher
 from app.evaluation import crf_tagger_classification_report, print_crf_transitions
 from app.utils import feed_crf_params, feed_cross_validation
 
@@ -228,7 +229,7 @@ def get_best_crf_model(training_sentences,
 
         grid_search_results.append(d)
 
-    best_model_metadata = sorted(grid_search_results, key=lambda d: d['mean_test_score'], reverse=True)
+    best_model_metadata = sorted(grid_search_results, key=lambda x: x['mean_test_score'], reverse=True)
 
     if verbose > 0:
         print(DataFrame(grid_search_results))
@@ -242,3 +243,43 @@ def get_best_crf_model(training_sentences,
                                       filepath=filepath)
 
     return best_model_meta
+
+
+if __name__ == "__main__":
+    # fetches and creates a dict containing the train, dev and test data.
+    data_dict = DataFetcher.read_data(files_list=['train', 'dev', 'test'])
+
+    train_data = DataFetcher.parse_conllu(data_dict['train'])
+    dev_data = DataFetcher.parse_conllu(data_dict['dev'])
+    test_data = DataFetcher.parse_conllu(data_dict['test'])
+
+    train_sents = DataFetcher.remove_empty_sentences(train_data)
+    dev_sents = DataFetcher.remove_empty_sentences(dev_data)
+    test_sents = DataFetcher.remove_empty_sentences(test_data)
+
+    train_dev_sents = train_sents + dev_sents
+
+    # pprint(train_sents[0])
+    # pprint(get_sentence_to_features(train_sents[0]))
+    #
+    grid_params = {
+        'c1': [1.0],  # coeff for L1 penalty
+        'c2': [1e-3],  # coeff for L2 penalty
+        'max_iterations': [50, 100],  # stop earlier
+        'feature.possible_transitions': [True]  # include transitions that are possible, but not observed
+    }
+
+    model_results = get_best_crf_model(training_sentences=train_dev_sents,
+                                       test_sentences=test_sents,
+                                       grid_params=grid_params,
+                                       k_folds=3,
+                                       verbose=1)
+
+    grid_search_best_trained_tagger = model_results['model']
+
+    # Possible parameters for the default training algorithm:.
+    # pprint(trainer.params())
+
+    example_sent = test_sents[0]
+    print_crf_tagger_example(trained_tagger=grid_search_best_trained_tagger,
+                             sentence=dev_sents[0])
