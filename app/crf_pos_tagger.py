@@ -195,3 +195,36 @@ def train_crf_model(training_sentences, test_sentences, params=None, verbose=0, 
         print_transitions(Counter(info.transitions).most_common()[-15:])
 
     return tagger
+
+
+if __name__ == "__main__":
+    # fetches and creates a dict containing the train, dev and test data.
+    data_dict = DataFetcher.read_data(files_list=['train', 'dev', 'test'])
+
+    train_data = DataFetcher.parse_conllu(data_dict['train'])
+    dev_data = DataFetcher.parse_conllu(data_dict['dev'])
+    test_data = DataFetcher.parse_conllu(data_dict['test'])
+
+    train_sents = DataFetcher.remove_empty_sentences(train_data)
+    dev_sents = DataFetcher.remove_empty_sentences(dev_data)
+    test_sents = DataFetcher.remove_empty_sentences(test_data)
+
+    # pprint(train_sents[0])
+    # pprint(get_sentence_to_features(train_sents[0]))
+    params = {
+        'c1': 1.0,  # coefficient for L1 penalty
+        'c2': 1e-3,  # coefficient for L2 penalty
+        'max_iterations': 50,  # stop earlier
+        'feature.possible_transitions': True  # include transitions that are possible, but not observed
+    }
+
+    trained_tagger = train_crf_model(training_sentences=train_sents,
+                                     test_sentences=test_sents,
+                                     params=params,
+                                     verbose=1)
+
+    # Possible parameters for the default training algorithm:.
+    # pprint(trainer.params())
+
+    example_sent = test_sents[0]
+    print_tagger_example(trained_tagger=trained_tagger, sentence=dev_sents[0])
