@@ -5,15 +5,15 @@ import pandas as pd
 import pycrfsuite
 from numpy import mean
 
-pd.set_option('display.expand_frame_repr', False)
-
 from app import MODELS_DIR
 from app.data_fetcher import DataFetcher
 from app.evaluation import crf_tagger_classification_report, print_crf_transitions
 from app.utils import feed_crf_params, feed_cross_validation
 
-CRF_MODEL_FILEPATH = os.path.join(MODELS_DIR, 'crf_model_en.crfsuite')
-GRID_SEARCH_CRF_MODEL_FILEPATH = os.path.join(MODELS_DIR, 'temp_crf_model_en.crfsuite')
+pd.set_option('display.expand_frame_repr', False)
+
+CRF_MODEL_FILE_PATH = os.path.join(MODELS_DIR, 'crf_model_en.crfsuite')
+GRID_SEARCH_CRF_MODEL_FILE_PATH = os.path.join(MODELS_DIR, 'temp_crf_model_en.crfsuite')
 
 
 def get_word_features(sent, position):
@@ -102,7 +102,7 @@ def train_crf_model(training_sentences,
                     test_sentences,
                     params=None,
                     verbose=0,
-                    filepath=CRF_MODEL_FILEPATH,
+                    filepath=CRF_MODEL_FILE_PATH,
                     load_model=False):
     """
     This model trains CRF model for POS TAGS.
@@ -209,7 +209,7 @@ def get_grid_search_crf_model(training_sentences,
                               grid_params=None,
                               verbose=0,
                               k_folds=3,
-                              filepath=GRID_SEARCH_CRF_MODEL_FILEPATH):
+                              filepath=GRID_SEARCH_CRF_MODEL_FILE_PATH):
     """
     This function runs k fold cross validation along with greedy search. For all combinations of parameters
     and for all folds, the function fits models, calculates accuracy scores, and average accuracy score for
@@ -231,12 +231,14 @@ def get_grid_search_crf_model(training_sentences,
     # instantiating a list in order to store all the metadta for the gridsearch CV
     grid_search_results = list()
 
-
     for param_combination in param_combinations:
         # instantiate a dictionary that will contain all meetadata for this given set of parameters
         # and for all splits.
         d = dict()
         d['parameters'] = param_combination
+
+        for k, v in param_combination.items():
+            d['param-{}'.format(k)] = v
 
         scores = list()  # we need it in order to calculate the average score.
 
@@ -271,7 +273,7 @@ def get_grid_search_crf_model(training_sentences,
                                  reverse=True)
 
     if verbose == 1:
-        print(pd.DataFrame(grid_search_results))
+        print(pd.DataFrame(best_model_metadata))
 
     # selecting the best parameters in order to retrain the model to the whole training dataset.
     best_parameters = best_model_metadata[0]['parameters']
@@ -290,7 +292,6 @@ def get_grid_search_crf_model(training_sentences,
 
 
 if __name__ == "__main__":
-
     # fetches and creates a dict containing the train, dev and test data.
     data_dict = DataFetcher.read_data(files_list=['train', 'dev', 'test'])
 
@@ -311,11 +312,11 @@ if __name__ == "__main__":
     grid_params = {
         'c1': [1.0, 0.1, 0.01],  # coeff for L1 penalty
         'c2': [1.0, 0.1, 0.01],  # coeff for L2 penalty
-        'max_iterations': [50, 100, 200],  # stop earlier
+        'max_iterations': [50, 100, 200, 250],  # stop earlier
         'feature.possible_transitions': [True, False]  # include transitions that are possible, but not observed
     }
-    
-    # Running grid seach CV. Obtaining the best model and testing it in the 'unseen' test dataset.
+
+    # Running grid search CV. Obtaining the best model and testing it in the 'unseen' test dataset.
     model_results = get_grid_search_crf_model(training_sentences=train_dev_sents,
                                               test_sentences=test_sents,
                                               grid_params=grid_params,
