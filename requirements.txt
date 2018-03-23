@@ -1,0 +1,7 @@
+nltk
+scikit-learn
+conllu
+numpy
+pandas
+matplotlib
+python-crfsuite
