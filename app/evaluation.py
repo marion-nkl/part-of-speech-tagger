@@ -50,28 +50,18 @@ def crf_tagger_classification_report(y_true, y_pred):
     pos_tags_set = sorted(set(lb.classes_))
     class_indices = {cls: idx for idx, cls in enumerate(lb.classes_)}
 
-    return classification_report(
+    accuracy = accuracy_score(y_true_combined, y_pred_combined)
+
+    clf_report = classification_report(
         y_true_combined,
         y_pred_combined,
+        digits=3,
         labels=[class_indices[cls] for cls in pos_tags_set],
-        target_names=pos_tags_set,
-    )
+        target_names=pos_tags_set)
+
+    return {'accuracy': accuracy, 'clf_report': clf_report}
 
 
 def print_crf_transitions(trans_features):
     for (label_from, label_to), weight in trans_features:
         print("%-6s -> %-7s %0.6f" % (label_from, label_to, weight))
-
-
-def print_crf_tagger_example(trained_tagger, sentence):
-    """
-
-    :param trained_tagger:
-    :param sentence:
-    :return:
-    """
-
-    print('\n\nSentence: "{}"'.format(' '.join(extract_tokens_from_sentence_token_tuples(sentence)), end='\n\n'))
-
-    print("Predicted:", ' '.join(trained_tagger.tag(get_sentence_to_features(sentence))))
-    print("Correct:  ", ' '.join(extract_labels_from_sentence_token_tuples(sentence)))
