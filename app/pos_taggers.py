@@ -32,10 +32,13 @@ class Tagger:
 
 
 if __name__ == '__main__':
+
     data = treebank.tagged_sents()[:3000]
+
     data_dict = DataFetcher.read_data()
-    train_data = DataFetcher.parse_conllu(data_dict['train'])
+    train_data = DataFetcher.parse_conllu(data_dict['train'], 'xpostag')
     cleaned_train_data = DataFetcher.remove_empty_sentences(train_data)
+
     dev = [('This', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP')]
     test = 'This is a sentence'.split()
 
@@ -55,16 +58,16 @@ if __name__ == '__main__':
     print()
     print()
 
-    crf_obj = Tagger(cleaned_train_data, 'crf')
-    crf_obj.fit()
-
-    crf_obj_nltk = Tagger(data, 'crf')
-    crf_obj_nltk.fit()
-
-    print('-' * 30)
-    print('CRF Tagger')
-    print('Tagging with our dataset: {}'.format(crf_obj.tagger.tag_sents([test])))
-    print('Evaluation: {}'.format(crf_obj.tagger.evaluate([dev])))
-    print('Tagging with nltk corpus: {}'.format(crf_obj_nltk.tagger.tag_sents([test])))
-    print('Evaluation: {}'.format(crf_obj_nltk.tagger.evaluate([dev])))
-    print()
+    # crf_obj = Tagger(cleaned_train_data, 'crf')
+    # crf_obj.fit()
+    #
+    # crf_obj_nltk = Tagger(data, 'crf')
+    # crf_obj_nltk.fit()
+    #
+    # print('-' * 30)
+    # print('CRF Tagger')
+    # print('Tagging with our dataset: {}'.format(crf_obj.tagger.tag_sents([test])))
+    # print('Evaluation: {}'.format(crf_obj.tagger.evaluate([dev])))
+    # print('Tagging with nltk corpus: {}'.format(crf_obj_nltk.tagger.tag_sents([test])))
+    # print('Evaluation: {}'.format(crf_obj_nltk.tagger.evaluate([dev])))
+    # print()

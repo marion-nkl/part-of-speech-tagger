@@ -1,6 +1,8 @@
-import conllu
-from app import DATA_DIR
 from os.path import join
+
+import conllu
+
+from app import DATA_DIR
 
 
 class DataFetcher:
@@ -79,7 +81,7 @@ class DataFetcher:
         return data_dict
 
     @staticmethod
-    def parse_conllu(data):
+    def parse_conllu(data, tag_type='upostag'):
         """
         Parses a .conllu format sentence and keep each word with the respective POS tag
         :param data: dict with conllu tags
@@ -92,7 +94,7 @@ class DataFetcher:
                 parsed_data = conllu.parse(sentence)
                 sentence_list = list()
                 for word in parsed_data[0]:
-                    sentence_list.append((word['lemma'].strip(), word['upostag']))
+                    sentence_list.append((word['lemma'].strip(), word[tag_type]))
                 data_list.append(sentence_list)
 
         return data_list
