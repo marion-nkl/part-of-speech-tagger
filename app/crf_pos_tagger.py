@@ -1,13 +1,13 @@
-from itertools import chain
-import nltk
-from sklearn.metrics import classification_report, confusion_matrix
-from sklearn.preprocessing import LabelBinarizer
-import pycrfsuite
-from pprint import pprint
-from app.data_fetcher import DataFetcher
-from app import MODELS_DIR
 import os
 from collections import Counter
+from itertools import chain
+
+import pycrfsuite
+from sklearn.metrics import classification_report
+from sklearn.preprocessing import LabelBinarizer
+
+from app import MODELS_DIR
+from app.data_fetcher import DataFetcher
 
 CRF_MODEL_FILEPATH = os.path.join(MODELS_DIR, 'crf_model_en.crfsuite')
 
@@ -128,7 +128,8 @@ def print_tagger_example(trained_tagger, sentence):
     :param sentence:
     :return:
     """
-    print(' '.join(extract_tokens_from_sentence_token_tuples(sentence)), end='\n\n')
+
+    print('\n\nSentence: "{}"'.format(' '.join(extract_tokens_from_sentence_token_tuples(sentence)), end='\n\n'))
 
     print("Predicted:", ' '.join(trained_tagger.tag(get_sentence_to_features(sentence))))
     print("Correct:  ", ' '.join(extract_labels_from_sentence_token_tuples(sentence)))
