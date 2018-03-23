@@ -2,9 +2,12 @@ import os
 from collections import Counter
 
 import pycrfsuite
+from numpy import mean
+from pandas import DataFrame
 
 from app import MODELS_DIR
 from app.evaluation import crf_tagger_classification_report, print_crf_transitions
+from app.utils import feed_crf_params, feed_cross_validation
 
 CRF_MODEL_FILEPATH = os.path.join(MODELS_DIR, 'crf_model_en.crfsuite')
 GRID_SEARCH_CRF_MODEL_FILEPATH = os.path.join(MODELS_DIR, 'temp_crf_model_en.crfsuite')
@@ -177,3 +180,65 @@ def print_crf_tagger_example(trained_tagger, sentence):
 
     print("Predicted:", ' '.join(trained_tagger.tag(get_sentence_to_features(sentence))))
     print("Correct:  ", ' '.join(extract_labels_from_sentence_token_tuples(sentence)))
+
+
+def get_best_crf_model(training_sentences,
+                       test_sentences,
+                       grid_params=None,
+                       verbose=0,
+                       k_folds=3,
+                       filepath=GRID_SEARCH_CRF_MODEL_FILEPATH):
+    """
+
+    :param training_sentences:
+    :param test_sentences:
+    :param grid_params:
+    :param verbose:
+    :param k_folds:
+    :param filepath:
+    :return:
+    """
+
+    param_combinations = feed_crf_params(grid_search_params=grid_params)
+
+    grid_search_results = list()
+
+    for param_combination in param_combinations:
+        d = dict()
+        d['parameters'] = param_combination
+
+        scores = list()
+
+        if verbose > 0: print('Model Parameters: {}'.format(param_combination))
+
+        for num, data in enumerate(feed_cross_validation(sentences=training_sentences, k_folds=k_folds)):
+            train = data['train']
+            held_out = data['held_out']
+
+            model_meta = train_crf_model(training_sentences=train,
+                                         test_sentences=held_out,
+                                         params=param_combination,
+                                         verbose=verbose,
+                                         filepath=filepath)
+
+            d["fold{}_score".format(num + 1)] = model_meta['accuracy']
+            scores.append(model_meta['accuracy'])
+
+        d['mean_test_score'] = mean(scores)
+
+        grid_search_results.append(d)
+
+    best_model_metadata = sorted(grid_search_results, key=lambda d: d['mean_test_score'], reverse=True)
+
+    if verbose > 0:
+        print(DataFrame(grid_search_results))
+
+    best_parameters = best_model_metadata[0]['parameters']
+
+    best_model_meta = train_crf_model(training_sentences=training_sentences,
+                                      test_sentences=test_sentences,
+                                      params=best_parameters,
+                                      verbose=verbose,
+                                      filepath=filepath)
+
+    return best_model_meta
