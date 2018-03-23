@@ -4,10 +4,10 @@ from collections import Counter
 import pycrfsuite
 
 from app import MODELS_DIR
-from app.data_fetcher import DataFetcher
-from app.evaluation import crf_tagger_classification_report, print_crf_transitions, print_crf_tagger_example
+from app.evaluation import crf_tagger_classification_report, print_crf_transitions
 
 CRF_MODEL_FILEPATH = os.path.join(MODELS_DIR, 'crf_model_en.crfsuite')
+GRID_SEARCH_CRF_MODEL_FILEPATH = os.path.join(MODELS_DIR, 'temp_crf_model_en.crfsuite')
 
 
 def get_word_features(sent, position):
@@ -113,12 +113,9 @@ def train_crf_model(training_sentences, test_sentences, params=None, verbose=0, 
             'feature.possible_transitions': True  # include transitions that are possible, but not observed
         }
 
-    # extracting the features and the labels (pos tags) for the train and test examples
+    # extracting the features and the labels (pos tags) for the train examples
     X_train = [get_sentence_to_features(s) for s in training_sentences]
     y_train = [extract_labels_from_sentence_token_tuples(s) for s in training_sentences]
-
-    X_test = [get_sentence_to_features(s) for s in test_sentences]
-    y_test = [extract_labels_from_sentence_token_tuples(s) for s in test_sentences]
 
     # Training the model:
     # In order to train the model, we create a pycrfsuite.Trainer, load the training data and calling the 'train' method
@@ -137,52 +134,46 @@ def train_crf_model(training_sentences, test_sentences, params=None, verbose=0, 
     tagger = pycrfsuite.Tagger()
     tagger.open(filepath)
 
-    # Predicting pos tag labels for all sentences in our testing set
-    y_pred = [tagger.tag(xseq) for xseq in X_test]
+    model_accuracy = None
 
-    print(crf_tagger_classification_report(y_test, y_pred))
+    if test_sentences:
 
-    if verbose > 0:
-        # Let's check what classifier learned
-        info = tagger.info()
+        X_test = [get_sentence_to_features(s) for s in test_sentences]
+        y_test = [extract_labels_from_sentence_token_tuples(s) for s in test_sentences]
+        # Predicting pos tag labels for all sentences in our testing set
+        y_pred = [tagger.tag(xseq) for xseq in X_test]
 
-        print("Top likely Pos Tags transitions:")
-        print_crf_transitions(Counter(info.transitions).most_common(15))
+        model_res = crf_tagger_classification_report(y_test, y_pred)
 
-        print("\nTop unlikely Pos Tags transitions:")
-        print_crf_transitions(Counter(info.transitions).most_common()[-15:])
+        model_accuracy = model_res['accuracy']
+        model_clf_report = model_res['clf_report']
 
-    return tagger
+        if verbose > 0:
+            # Checking what classifier has learned
+            info = tagger.info()
+
+            print('Model Accuracy: {}'.format(model_accuracy), end='\n\n')
+
+            print(model_clf_report)
+
+            print("Top likely Pos Tags transitions:")
+            print_crf_transitions(Counter(info.transitions).most_common(15))
+
+            print("\nTop unlikely Pos Tags transitions:")
+            print_crf_transitions(Counter(info.transitions).most_common()[-15:])
+
+    return {'model': tagger, 'accuracy': model_accuracy}
 
 
-if __name__ == "__main__":
-    # fetches and creates a dict containing the train, dev and test data.
-    data_dict = DataFetcher.read_data(files_list=['train', 'dev', 'test'])
+def print_crf_tagger_example(trained_tagger, sentence):
+    """
 
-    train_data = DataFetcher.parse_conllu(data_dict['train'])
-    dev_data = DataFetcher.parse_conllu(data_dict['dev'])
-    test_data = DataFetcher.parse_conllu(data_dict['test'])
+    :param trained_tagger:
+    :param sentence:
+    :return:
+    """
 
-    train_sents = DataFetcher.remove_empty_sentences(train_data)
-    dev_sents = DataFetcher.remove_empty_sentences(dev_data)
-    test_sents = DataFetcher.remove_empty_sentences(test_data)
+    print('\n\nSentence: "{}"'.format(' '.join(extract_tokens_from_sentence_token_tuples(sentence)), end='\n\n'))
 
-    # pprint(train_sents[0])
-    # pprint(get_sentence_to_features(train_sents[0]))
-    parameters = {
-        'c1': 1.0,  # coefficient for L1 penalty
-        'c2': 1e-3,  # coefficient for L2 penalty
-        'max_iterations': 50,  # stop earlier
-        'feature.possible_transitions': True  # include transitions that are possible, but not observed
-    }
-
-    trained_tagger = train_crf_model(training_sentences=train_sents,
-                                     test_sentences=test_sents,
-                                     params=parameters,
-                                     verbose=1)
-
-    # Possible parameters for the default training algorithm:.
-    # pprint(trainer.params())
-
-    example_sent = test_sents[0]
-    print_crf_tagger_example(trained_tagger=trained_tagger, sentence=dev_sents[0])
+    print("Predicted:", ' '.join(trained_tagger.tag(get_sentence_to_features(sentence))))
+    print("Correct:  ", ' '.join(extract_labels_from_sentence_token_tuples(sentence)))
