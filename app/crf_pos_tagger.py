@@ -92,3 +92,42 @@ def extract_tokens_from_sentence_token_tuples(sent):
     :return:
     """
     return [token for token, postag in sent]
+
+
+def tagger_classification_report(y_true, y_pred):
+    """
+    Classification report for a list of pos-tags-encoded sequences.
+    It computes token-level metrics
+    """
+    lb = LabelBinarizer()
+
+    # flattens the results for the list of lists of tuples
+    y_true_combined = lb.fit_transform(list(chain.from_iterable(y_true)))
+    y_pred_combined = lb.transform(list(chain.from_iterable(y_pred)))
+
+    pos_tags_set = sorted(set(lb.classes_))
+    class_indices = {cls: idx for idx, cls in enumerate(lb.classes_)}
+
+    return classification_report(
+        y_true_combined,
+        y_pred_combined,
+        labels=[class_indices[cls] for cls in pos_tags_set],
+        target_names=pos_tags_set,
+    )
+
+def print_transitions(trans_features):
+    for (label_from, label_to), weight in trans_features:
+        print("%-6s -> %-7s %0.6f" % (label_from, label_to, weight))
+
+
+def print_tagger_example(trained_tagger, sentence):
+    """
+
+    :param trained_tagger:
+    :param sentence:
+    :return:
+    """
+    print(' '.join(extract_tokens_from_sentence_token_tuples(sentence)), end='\n\n')
+
+    print("Predicted:", ' '.join(trained_tagger.tag(get_sentence_to_features(sentence))))
+    print("Correct:  ", ' '.join(extract_labels_from_sentence_token_tuples(sentence)))
