@@ -115,6 +115,7 @@ def tagger_classification_report(y_true, y_pred):
         target_names=pos_tags_set,
     )
 
+
 def print_transitions(trans_features):
     for (label_from, label_to), weight in trans_features:
         print("%-6s -> %-7s %0.6f" % (label_from, label_to, weight))
@@ -131,3 +132,66 @@ def print_tagger_example(trained_tagger, sentence):
 
     print("Predicted:", ' '.join(trained_tagger.tag(get_sentence_to_features(sentence))))
     print("Correct:  ", ' '.join(extract_labels_from_sentence_token_tuples(sentence)))
+
+
+def train_crf_model(training_sentences, test_sentences, params=None, verbose=0, filepath=CRF_MODEL_FILEPATH):
+    """
+
+    :param training_sentences:
+    :param test_sentences:
+    :param params:
+    :param verbose:
+    :param filepath:
+    :return:
+    """
+
+    if params is None:
+        # Set training parameters. We will use L-BFGS training algorithm (it is default)
+        # with Elastic Net (L1 + L2) regularization.
+        params = {
+            'c1': 1.0,  # coeff for L1 penalty
+            'c2': 1e-3,  # coeff for L2 penalty
+            'max_iterations': 50,  # stop earlier
+            'feature.possible_transitions': True  # include transitions that are possible, but not observed
+        }
+
+    # extracting the features and the labels (pos tags) for the train and test examples
+    X_train = [get_sentence_to_features(s) for s in training_sentences]
+    y_train = [extract_labels_from_sentence_token_tuples(s) for s in training_sentences]
+
+    X_test = [get_sentence_to_features(s) for s in test_sentences]
+    y_test = [extract_labels_from_sentence_token_tuples(s) for s in test_sentences]
+
+    # Training the model:
+    # In order to train the model, we create a pycrfsuite.Trainer, load the training data and calling the 'train' method
+
+    trainer = pycrfsuite.Trainer(verbose=False)
+
+    for xseq, yseq in zip(X_train, y_train):
+        trainer.append(xseq, yseq)
+
+    # setting the parameters for the models.
+    trainer.set_params(params)
+    trainer.train(filepath)
+
+    # Make predictions
+    # In order to use the trained model, we create a pycrfsuite.Tagger, open the model and use "tag" method:
+    tagger = pycrfsuite.Tagger()
+    tagger.open(filepath)
+
+    # Predicting pos tag labels for all sentences in our testing set
+    y_pred = [tagger.tag(xseq) for xseq in X_test]
+
+    print(tagger_classification_report(y_test, y_pred))
+
+    if verbose > 0:
+        # Let's check what classifier learned
+        info = tagger.info()
+
+        print("Top likely Pos Tags transitions:")
+        print_transitions(Counter(info.transitions).most_common(15))
+
+        print("\nTop unlikely Pos Tags transitions:")
+        print_transitions(Counter(info.transitions).most_common()[-15:])
+
+    return tagger
