@@ -1,9 +1,11 @@
 import os
 from collections import Counter
 
+import pandas as pd
 import pycrfsuite
 from numpy import mean
-from pandas import DataFrame
+
+pd.set_option('display.expand_frame_repr', False)
 
 from app import MODELS_DIR
 from app.data_fetcher import DataFetcher
@@ -96,7 +98,12 @@ def extract_tokens_from_sentence_token_tuples(sent):
     return [token for token, postag in sent]
 
 
-def train_crf_model(training_sentences, test_sentences, params=None, verbose=0, filepath=CRF_MODEL_FILEPATH):
+def train_crf_model(training_sentences,
+                    test_sentences,
+                    params=None,
+                    verbose=0,
+                    filepath=CRF_MODEL_FILEPATH,
+                    load_model=False):
     """
 
     :param training_sentences:
@@ -104,42 +111,48 @@ def train_crf_model(training_sentences, test_sentences, params=None, verbose=0, 
     :param params:
     :param verbose:
     :param filepath:
+    :param load_model:
     :return:
     """
+    if load_model:
 
-    if params is None:
-        # Set training parameters. We will use L-BFGS training algorithm (it is default)
-        # with Elastic Net (L1 + L2) regularization.
-        params = {
-            'c1': 1.0,  # coeff for L1 penalty
-            'c2': 1e-3,  # coeff for L2 penalty
-            'max_iterations': 50,  # stop earlier
-            'feature.possible_transitions': True  # include transitions that are possible, but not observed
-        }
+        tagger = pycrfsuite.Tagger()
+        tagger.open(filepath)
 
-    # extracting the features and the labels (pos tags) for the train examples
-    X_train = [get_sentence_to_features(s) for s in training_sentences]
-    y_train = [extract_labels_from_sentence_token_tuples(s) for s in training_sentences]
+    else:
 
-    # Training the model:
-    # In order to train the model, we create a pycrfsuite.Trainer, load the training data and calling the 'train' method
+        if params is None:
+            # Set training parameters. We will use L-BFGS training algorithm (it is default)
+            # with Elastic Net (L1 + L2) regularization.
+            params = {
+                'c1': 1.0,  # coeff for L1 penalty
+                'c2': 1e-3,  # coeff for L2 penalty
+                'max_iterations': 50,  # stop earlier
+                'feature.possible_transitions': True  # include transitions that are possible, but not observed
+            }
 
-    trainer = pycrfsuite.Trainer(verbose=False)
+        # extracting the features and the labels (pos tags) for the train examples
+        X_train = [get_sentence_to_features(s) for s in training_sentences]
+        y_train = [extract_labels_from_sentence_token_tuples(s) for s in training_sentences]
 
-    for xseq, yseq in zip(X_train, y_train):
-        trainer.append(xseq, yseq)
+        # Training the model:
+        # In order to train the model, we create a pycrfsuite.Trainer, load the training data and calling the 'train' method
 
-    # setting the parameters for the models.
-    trainer.set_params(params)
-    trainer.train(filepath)
+        trainer = pycrfsuite.Trainer(verbose=False)
 
-    # Make predictions
-    # In order to use the trained model, we create a pycrfsuite.Tagger, open the model and use "tag" method:
-    tagger = pycrfsuite.Tagger()
-    tagger.open(filepath)
+        for xseq, yseq in zip(X_train, y_train):
+            trainer.append(xseq, yseq)
+
+        # setting the parameters for the models.
+        trainer.set_params(params)
+        trainer.train(filepath)
+
+        # Make predictions
+        # In order to use the trained model, we create a pycrfsuite.Tagger, open the model and use "tag" method:
+        tagger = pycrfsuite.Tagger()
+        tagger.open(filepath)
 
     model_accuracy = None
-
     if test_sentences:
 
         X_test = [get_sentence_to_features(s) for s in test_sentences]
@@ -183,12 +196,12 @@ def print_crf_tagger_example(trained_tagger, sentence):
     print("Correct:  ", ' '.join(extract_labels_from_sentence_token_tuples(sentence)))
 
 
-def get_best_crf_model(training_sentences,
-                       test_sentences,
-                       grid_params=None,
-                       verbose=0,
-                       k_folds=3,
-                       filepath=GRID_SEARCH_CRF_MODEL_FILEPATH):
+def get_grid_search_crf_model(training_sentences,
+                              test_sentences,
+                              grid_params=None,
+                              verbose=0,
+                              k_folds=3,
+                              filepath=GRID_SEARCH_CRF_MODEL_FILEPATH):
     """
 
     :param training_sentences:
@@ -216,10 +229,11 @@ def get_best_crf_model(training_sentences,
             train = data['train']
             held_out = data['held_out']
 
+            verb = 1 if verbose > 1 else 0
             model_meta = train_crf_model(training_sentences=train,
                                          test_sentences=held_out,
                                          params=param_combination,
-                                         verbose=verbose,
+                                         verbose=verb,
                                          filepath=filepath)
 
             d["fold{}_score".format(num + 1)] = model_meta['accuracy']
@@ -231,8 +245,8 @@ def get_best_crf_model(training_sentences,
 
     best_model_metadata = sorted(grid_search_results, key=lambda x: x['mean_test_score'], reverse=True)
 
-    if verbose > 0:
-        print(DataFrame(grid_search_results))
+    if verbose == 1:
+        print(pd.DataFrame(grid_search_results))
 
     best_parameters = best_model_metadata[0]['parameters']
 
@@ -259,26 +273,20 @@ if __name__ == "__main__":
 
     train_dev_sents = train_sents + dev_sents
 
-    # pprint(train_sents[0])
-    # pprint(get_sentence_to_features(train_sents[0]))
-    #
     grid_params = {
-        'c1': [1.0],  # coeff for L1 penalty
-        'c2': [1e-3],  # coeff for L2 penalty
-        'max_iterations': [50, 100],  # stop earlier
-        'feature.possible_transitions': [True]  # include transitions that are possible, but not observed
+        'c1': [1.0, 0.1, 0.01],  # coeff for L1 penalty
+        'c2': [1.0, 0.1, 0.01],  # coeff for L2 penalty
+        'max_iterations': [50, 100, 200],  # stop earlier
+        'feature.possible_transitions': [True, False]  # include transitions that are possible, but not observed
     }
 
-    model_results = get_best_crf_model(training_sentences=train_dev_sents,
-                                       test_sentences=test_sents,
-                                       grid_params=grid_params,
-                                       k_folds=3,
-                                       verbose=1)
+    model_results = get_grid_search_crf_model(training_sentences=train_dev_sents,
+                                              test_sentences=test_sents,
+                                              grid_params=grid_params,
+                                              k_folds=3,
+                                              verbose=1)
 
     grid_search_best_trained_tagger = model_results['model']
-
-    # Possible parameters for the default training algorithm:.
-    # pprint(trainer.params())
 
     example_sent = test_sents[0]
     print_crf_tagger_example(trained_tagger=grid_search_best_trained_tagger,
