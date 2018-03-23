@@ -1,13 +1,11 @@
 import os
 from collections import Counter
-from itertools import chain
 
 import pycrfsuite
-from sklearn.metrics import classification_report
-from sklearn.preprocessing import LabelBinarizer
 
 from app import MODELS_DIR
 from app.data_fetcher import DataFetcher
+from app.evaluation import crf_tagger_classification_report, print_crf_transitions, print_crf_tagger_example
 
 CRF_MODEL_FILEPATH = os.path.join(MODELS_DIR, 'crf_model_en.crfsuite')
 
@@ -94,47 +92,6 @@ def extract_tokens_from_sentence_token_tuples(sent):
     return [token for token, postag in sent]
 
 
-def tagger_classification_report(y_true, y_pred):
-    """
-    Classification report for a list of pos-tags-encoded sequences.
-    It computes token-level metrics
-    """
-    lb = LabelBinarizer()
-
-    # flattens the results for the list of lists of tuples
-    y_true_combined = lb.fit_transform(list(chain.from_iterable(y_true)))
-    y_pred_combined = lb.transform(list(chain.from_iterable(y_pred)))
-
-    pos_tags_set = sorted(set(lb.classes_))
-    class_indices = {cls: idx for idx, cls in enumerate(lb.classes_)}
-
-    return classification_report(
-        y_true_combined,
-        y_pred_combined,
-        labels=[class_indices[cls] for cls in pos_tags_set],
-        target_names=pos_tags_set,
-    )
-
-
-def print_transitions(trans_features):
-    for (label_from, label_to), weight in trans_features:
-        print("%-6s -> %-7s %0.6f" % (label_from, label_to, weight))
-
-
-def print_tagger_example(trained_tagger, sentence):
-    """
-
-    :param trained_tagger:
-    :param sentence:
-    :return:
-    """
-
-    print('\n\nSentence: "{}"'.format(' '.join(extract_tokens_from_sentence_token_tuples(sentence)), end='\n\n'))
-
-    print("Predicted:", ' '.join(trained_tagger.tag(get_sentence_to_features(sentence))))
-    print("Correct:  ", ' '.join(extract_labels_from_sentence_token_tuples(sentence)))
-
-
 def train_crf_model(training_sentences, test_sentences, params=None, verbose=0, filepath=CRF_MODEL_FILEPATH):
     """
 
@@ -183,17 +140,17 @@ def train_crf_model(training_sentences, test_sentences, params=None, verbose=0, 
     # Predicting pos tag labels for all sentences in our testing set
     y_pred = [tagger.tag(xseq) for xseq in X_test]
 
-    print(tagger_classification_report(y_test, y_pred))
+    print(crf_tagger_classification_report(y_test, y_pred))
 
     if verbose > 0:
         # Let's check what classifier learned
         info = tagger.info()
 
         print("Top likely Pos Tags transitions:")
-        print_transitions(Counter(info.transitions).most_common(15))
+        print_crf_transitions(Counter(info.transitions).most_common(15))
 
         print("\nTop unlikely Pos Tags transitions:")
-        print_transitions(Counter(info.transitions).most_common()[-15:])
+        print_crf_transitions(Counter(info.transitions).most_common()[-15:])
 
     return tagger
 
@@ -212,7 +169,7 @@ if __name__ == "__main__":
 
     # pprint(train_sents[0])
     # pprint(get_sentence_to_features(train_sents[0]))
-    params = {
+    parameters = {
         'c1': 1.0,  # coefficient for L1 penalty
         'c2': 1e-3,  # coefficient for L2 penalty
         'max_iterations': 50,  # stop earlier
@@ -221,11 +178,11 @@ if __name__ == "__main__":
 
     trained_tagger = train_crf_model(training_sentences=train_sents,
                                      test_sentences=test_sents,
-                                     params=params,
+                                     params=parameters,
                                      verbose=1)
 
     # Possible parameters for the default training algorithm:.
     # pprint(trainer.params())
 
     example_sent = test_sents[0]
-    print_tagger_example(trained_tagger=trained_tagger, sentence=dev_sents[0])
+    print_crf_tagger_example(trained_tagger=trained_tagger, sentence=dev_sents[0])
