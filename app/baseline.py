@@ -85,7 +85,7 @@ def main(n_rarest_words=2500):
     classes = sorted(set(test_tuples_df['y_pred']) | set(test_tuples_df['y_pred']))
 
     # creating a report for the whole test dataset.
-    create_report(test_tuples_df['y_true'], test_tuples_df['y_pred'], None)
+    create_report(test_tuples_df['y_true'], test_tuples_df['y_pred'], classes)
 
     # calculating the number (ratio) of each distinct word in the test dataset.
     x = test_tuples_df.groupby(['word']).count() / len(test_tuples_df)

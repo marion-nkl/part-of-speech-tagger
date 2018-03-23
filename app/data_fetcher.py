@@ -92,7 +92,7 @@ class DataFetcher:
                 parsed_data = conllu.parse(sentence)
                 sentence_list = list()
                 for word in parsed_data[0]:
-                    sentence_list.append((word['lemma'].strip(), word['xpostag']))
+                    sentence_list.append((word['lemma'].strip(), word['upostag']))
                 data_list.append(sentence_list)
 
         return data_list
