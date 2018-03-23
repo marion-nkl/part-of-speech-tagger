@@ -65,3 +65,30 @@ def get_word_features(sent, position):
         features.append('EOS')
 
     return features
+
+
+def get_sentence_to_features(sent):
+    """
+
+    :param sent:
+    :return:
+    """
+    return [get_word_features(sent, num) for num in range(len(sent))]
+
+
+def extract_labels_from_sentence_token_tuples(sent):
+    """
+
+    :param sent:
+    :return:
+    """
+    return [postag for token, postag in sent]
+
+
+def extract_tokens_from_sentence_token_tuples(sent):
+    """
+
+    :param sent:
+    :return:
+    """
+    return [token for token, postag in sent]
