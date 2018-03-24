@@ -1,5 +1,6 @@
-from app.data_fetcher import DataFetcher
 from pprint import pprint
+
+from app.data_fetcher import DataFetcher
 
 
 class HMMTagger:
@@ -20,6 +21,7 @@ class HMMTagger:
     def _pad_sentence(sentence):
         """
         Pad a sentence in order to add starting and end tokens in each sentence
+
         :param sentence: list of tuples with the word of each sentence along with its POS tag
         :return: list of tuples, a padded sentence with start and end tokens
         """
@@ -32,6 +34,9 @@ class HMMTagger:
     def fit(self, data):
         """
         Creates two probability dictionaries storing the POS-to-POS and the POS-to-WORD probabilities
+
+        :param data:
+        :return:
         """
         self._train_data = data
 
