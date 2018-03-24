@@ -1,14 +1,13 @@
 import os
 from collections import Counter
+from itertools import chain
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pycrfsuite
 from matplotlib.font_manager import FontProperties
-from more_itertools import divide
 from numpy import mean
-from sklearn import metrics
 
 from app import MODELS_DIR
 from app.data_fetcher import DataFetcher
@@ -192,6 +191,9 @@ def train_crf_model(training_sentences,
             # calculating the least likely transitions for POS TAGS sequences
             print_crf_transitions(Counter(info.transitions).most_common()[-15:])
 
+            y_test = list(chain.from_iterable(y_test))
+            y_pred = list(chain.from_iterable(y_pred))
+
     return {'model': tagger,
             'accuracy': model_accuracy,
             'y_true': y_test,
@@ -317,19 +319,9 @@ def crf_benchmark(train, test, params):
     y_true = model_meta['y_true']
     y_pred = model_meta['y_pred']
 
-    f1 = metrics.f1_score(y_true, y_pred, average='weighted')
+    res = crf_tagger_classification_report(y_true, y_pred)
 
-    accuracy = metrics.accuracy_score(y_true, y_pred)
-
-    print(" Acc: %f " % accuracy)
-
-    result = {'f1': f1,
-              'accuracy': accuracy,
-              'train size': len(train),
-              'test size': len(test),
-              'predictions': y_pred}
-
-    return result
+    return res
 
 
 def create_benchmark_plot(train,
@@ -353,8 +345,7 @@ def create_benchmark_plot(train,
 
     results = {'train_size': [], 'on_test': [], 'on_train': []}
 
-    # splitting the train X in n (almost) equal splits)
-    train_x_splits = divide(n=n_splits, iterable=train)
+    split_size = int(len(train) / n_splits)
 
     # setting parameters for the graph.
     font_p = FontProperties()
@@ -372,7 +363,7 @@ def create_benchmark_plot(train,
 
     plt.grid(True)
 
-    plt.axvline(x=int(train.shape[0] * 0.3))
+    plt.axvline(x=int(len(train) * 0.3))
     plt.yticks(np.arange(0, 1.025, 0.025))
 
     if y_ticks == 0.05:
@@ -384,41 +375,31 @@ def create_benchmark_plot(train,
     plt.ylim([min_y_lim, 1.025])
 
     # each time adds up one split and refits the model.
-    for i in range(1, n_splits + 1):
-        train_x_part = np.concatenate(train_x_splits[:i])
+    counter = split_size
+    for i in range(n_splits):
+        train_x_part = train[:counter]
+        counter += split_size
 
         print(20 * '*')
-        print('Split {} size: {}'.format(i, train_x_part.shape))
+        print('Split {} size: {}'.format(i, len(train_x_part)))
 
-        results['train_size'].append(train_x_part.shape[0])
+        results['train_size'].append(len(train_x_part))
 
-        result_on_test = crf_benchmark(train=train_x_part,
-                                       test=test,
-                                       params=params)
+        result_on_test = crf_benchmark(train=train_x_part, test=test, params=params)
 
         # calculates each time the metrics also on the test.
         results['on_test'].append(result_on_test['accuracy'])
 
         # calculates the metrics for the given training part
-        result_on_train_part = crf_benchmark(train=train_x_part,
-                                             test=train_x_part,
-                                             params=params)
+        result_on_train_part = crf_benchmark(train=train_x_part, test=train_x_part, params=params)
 
         results['on_train'].append(result_on_train_part['accuracy'])
 
-        line_up, = ax.plot(results['train_size'],
-                           results['on_train'],
-                           'o-',
-                           label='Accuracy on Train')
+        line_up, = ax.plot(results['train_size'], results['on_train'], 'o-', label='Accuracy on Train')
 
-        line_down, = ax.plot(results['train_size'],
-                             results['on_test'],
-                             'o-',
-                             label='Accuracy on Test')
+        line_down, = ax.plot(results['train_size'], results['on_test'], 'o-', label='Accuracy on Test')
 
-        plt.legend([line_up, line_down],
-                   ['Accuracy on Train', 'Accuracy on Test'],
-                   prop=font_p)
+        plt.legend([line_up, line_down], ['Accuracy on Train', 'Accuracy on Test'], prop=font_p)
 
     if plot_outfile:
         fig.savefig(plot_outfile)
@@ -527,3 +508,11 @@ if __name__ == "__main__":
 
     # concatenating the train and held out (dev) dataset in order to feed it for cross validation.
     train_dev_sents = train_sents + dev_sents
+
+    # Best parameters:
+    params = {'c1': 0.1, 'c2': 0.1, 'max_iterations': 200, 'feature.possible_transitions': True}
+
+    create_benchmark_plot(train=train_dev_sents,
+                          test=test_sents,
+                          n_splits=20,
+                          params=params)
