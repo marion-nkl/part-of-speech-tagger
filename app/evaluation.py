@@ -2,7 +2,7 @@ from itertools import chain
 
 import pandas as pd
 from sklearn.metrics import classification_report
-from sklearn.metrics import confusion_matrix, accuracy_score
+from sklearn.metrics import confusion_matrix, accuracy_score, f1_score
 from sklearn.preprocessing import LabelBinarizer
 
 
@@ -51,6 +51,7 @@ def crf_tagger_classification_report(y_true, y_pred):
     class_indices = {cls: idx for idx, cls in enumerate(lb.classes_)}
 
     accuracy = accuracy_score(y_true_combined, y_pred_combined)
+    f1 = f1_score(y_true_combined, y_pred_combined, average='weighted')
 
     clf_report = classification_report(
         y_true_combined,
@@ -59,7 +60,11 @@ def crf_tagger_classification_report(y_true, y_pred):
         labels=[class_indices[cls] for cls in pos_tags_set],
         target_names=pos_tags_set)
 
-    return {'accuracy': accuracy, 'clf_report': clf_report}
+    print(" Acc: %f " % accuracy)
+
+    return {'accuracy': accuracy,
+            'clf_report': clf_report,
+            'f1': f1}
 
 
 def print_crf_transitions(trans_features):
