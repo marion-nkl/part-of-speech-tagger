@@ -11,6 +11,7 @@ from app.evaluation import create_report
 
 plt.style.use('ggplot')
 pd.set_option('display.expand_frame_repr', False)
+plt.rcParams['figure.figsize'] = (16, 8)
 
 
 class Baseline:
@@ -165,7 +166,7 @@ def create_baseline_benchmark_plot(train,
     :param n_splits:
     :param plot_outfile:
     :param y_ticks:
-    :param min_y_lim: 
+    :param min_y_lim:
     :return:
     """
 
@@ -179,12 +180,12 @@ def create_baseline_benchmark_plot(train,
     font_p.set_size('small')
 
     fig = plt.figure()
-    fig.suptitle('Baseline POS Tagger Learning Curves', fontsize=20)
+    fig.suptitle('Baseline POS Tagger Learning Curves', fontsize=16)
 
     ax = fig.add_subplot(111)
     ax.axis(xmin=0, xmax=len(train) * 1.05, ymin=0, ymax=1.1)
 
-    plt.xlabel('N. of training instances', fontsize=18)
+    plt.xlabel('N. of training instances', fontsize=16)
     plt.ylabel('Accuracy', fontsize=16)
 
     plt.grid(True)
