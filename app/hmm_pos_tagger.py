@@ -1,12 +1,12 @@
 from pprint import pprint
-
-import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.font_manager import FontProperties
 from nltk.corpus import treebank
+from operator import add
 
 from app.data_fetcher import DataFetcher
 from app.evaluation import tagger_classification_report
+from matplotlib.font_manager import FontProperties
+import matplotlib.pyplot as plt
 
 
 class HMMTagger:
@@ -65,46 +65,46 @@ class HMMTagger:
         """
         return [postag for token, postag in sent]
 
-    def fit(self, X):
+    def fit(self, data):
         """
         Creates two probability dictionaries storing the POS-to-POS and the POS-to-WORD probabilities
-        :param X: list of lists of tuples, with sentences and their words with their POS tags
+        :param data: list of lists of tuples, with sentences and their words with their POS tags
         """
-        self._train_data = X
+        self._train_data = data
 
         for sentence in self._train_data:
             new_sentence = self._pad_sentence(sentence)
-
             for i in range(len(new_sentence)):
-
-                current_state_tag = new_sentence[i][1]
-                state_i_word = new_sentence[i][0]
-
-                self.states.add(current_state_tag)
-
-                self._state_frequencies[current_state_tag] = self._state_frequencies.get(current_state_tag, 0) + 1
-                self._word_frequencies[state_i_word] = self._word_frequencies.get(state_i_word, 0) + 1
-
-                self.emission_probabilities[
-                    current_state_tag, state_i_word] = self.emission_probabilities.get((current_state_tag,
-                                                                                        state_i_word), 0) + 1
+                self.states.add(new_sentence[i][1])
 
                 try:
-                    next_state_tag = new_sentence[i + 1][1]
+                    self._state_frequencies[new_sentence[i][1]] += 1
+                except KeyError:
+                    self._state_frequencies[new_sentence[i][1]] = 1
 
-                    self.transition_probabilities[
-                        current_state_tag, next_state_tag] = self.transition_probabilities.get((current_state_tag,
-                                                                                                next_state_tag), 0) + 1
+                try:
+                    self._word_frequencies[new_sentence[i][0]] += 1
+                except KeyError:
+                    self._word_frequencies[new_sentence[i][0]] = 1
+
+                try:
+                    self.transition_probabilities[new_sentence[i][1], new_sentence[i + 1][1]] += 1
+                except KeyError:
+                    self.transition_probabilities[new_sentence[i][1], new_sentence[i + 1][1]] = 1
                 except IndexError:
                     pass
+                try:
+                    self.emission_probabilities[new_sentence[i][1], new_sentence[i][0]] += 1
+                except KeyError:
+                    self.emission_probabilities[new_sentence[i][1], new_sentence[i][0]] = 1
 
         for state_pair in self.transition_probabilities:
-            self.transition_probabilities[state_pair] /= self._state_frequencies[state_pair[0]]
+            self.transition_probabilities[state_pair] = self.transition_probabilities[state_pair] / \
+                                                        self._state_frequencies[state_pair[0]]
 
         for state_word_pair in self.emission_probabilities:
-            self.emission_probabilities[state_word_pair] /= self._state_frequencies[state_word_pair[0]]
-
-        print(self.states)
+            self.emission_probabilities[state_word_pair] = self.emission_probabilities[state_word_pair] / \
+                                                           self._state_frequencies[state_word_pair[0]]
 
         self.states.remove('<start>')
         self.states.remove('<end>')
@@ -114,12 +114,10 @@ class HMMTagger:
         """
         Find the max value kai the max arg for a matrix (output of an element-wise multiplication between previous
         viterbi probabilities: v, and transitions probabilities: a
-
         :param viterbi_previous: list with viterbi log probabilities of the previous state
         :param transition_prob: list with transition probabilities for each previous state to the current
         :return: the max value and max arg
         """
-
         transition_prob_log = list(np.log(transition_prob))
         max_value = np.max(np.add(viterbi_previous, transition_prob_log))
         max_state = np.argmax(np.add(viterbi_previous, transition_prob_log))
@@ -141,9 +139,8 @@ class HMMTagger:
 
             self.viterbi[0][state]['viterbi'] = np.log(a) + np.log(b)
             self.viterbi[0][state]['argmax'] = None
-
         # fill in for the rest of the steps /words
-        for i in range(1, len(sequence) + 1):
+        for i in range(1, len(sequence)+ 1):
             if i != (len(sequence)):
                 self.viterbi[i] = dict()
                 for state in self.states:
@@ -177,7 +174,7 @@ class HMMTagger:
                 for state in self.viterbi[i - 1]:
                     previous_states.append(state)
                     previous_viterbi_list.append(self.viterbi[i - 1][state]['viterbi'])
-                    current_transitions.append(self.transition_probabilities.get((state, '<end>'), 1))
+                    current_transitions.append(self.transition_probabilities.get((state, '<end>'), 0.000001))
 
                     self.viterbi[i]["<end>"] = dict()
                     v_prev, state_prev = self._find_max(previous_viterbi_list, current_transitions)
@@ -222,6 +219,7 @@ class HMMTagger:
             position = np.argmax(viterbi_p + np.log(transition_a))
             final_path.append(state_list[position])
 
+
         # swap list
         true_path = list()
         for i in range(len(final_path) - 1, -1, -1):
@@ -236,7 +234,6 @@ class HMMTagger:
         :return: list, with the predicted path for the viterbi matrix
         """
         self._viterbi(sentence)
-
         path = self._get_final_path()
         # return all the path but not the <end> final state
         return path[:-1]
@@ -301,32 +298,17 @@ class HMMTagger:
 
             results['train_size'].append(len(train_x_part))
 
-            # fitting the model for the ginen sub training set
-            self.fit(train_x_part)
+            true_values_test, predictions_test = self.predict(train_x_part, test)
+            result_on_test = tagger_classification_report(true_values_test, predictions_test)
 
-            # checking the results always on the same test set
-            test_labels = [self.extract_pos_tags_from_sentence_token_tuples(x) for x in test]
-
-            print(test_labels)
-
-            predicted_labels = list()
-            for sent in test:
-                predicted_labels.append(self.tag(sent))
-
-            print(predicted_labels)
-
-            result_on_test = tagger_classification_report(test_labels, predicted_labels)
+            print('Result on test: {}'.format(result_on_test['accuracy']))
             results['on_test'].append(result_on_test['accuracy'])
 
-            # calculates the metrics for the given training part
-            train_labels = [self.extract_pos_tags_from_sentence_token_tuples(x) for x in train]
+            true_values_train, predictions_train = self.predict(train_x_part, train_x_part)
+            result_on_train = tagger_classification_report(true_values_train, predictions_train)
 
-            predicted_labels = list()
-            for sent in train:
-                predicted_labels.append(self.tag(sent))
-
-            result_on_train_part = tagger_classification_report(train_labels, predicted_labels)
-            results['on_train'].append(result_on_train_part['accuracy'])
+            print('Result on train: {}'.format(result_on_train['accuracy']))
+            results['on_train'].append(result_on_train['accuracy'])
 
             line_up, = ax.plot(results['train_size'], results['on_train'], 'o-', label='Accuracy on Train')
             line_down, = ax.plot(results['train_size'], results['on_test'], 'o-', label='Accuracy on Test')
@@ -340,13 +322,47 @@ class HMMTagger:
 
         return results
 
+    @staticmethod
+    def predict(train, test):
+        """
+
+        :param train:
+        :param test:
+        :return:
+        """
+        tagger = HMMTagger()
+        tagger.fit(train)
+
+        # Tag sentences
+        results = list()
+        true_value = list()
+
+        for s in test:
+            tag_tuples = tagger.tag(s)
+            tag_tuple = list()
+            for tag_tup in tag_tuples:
+                if tag_tup != '<end>':
+                    tag_tuple.append(tag_tup)
+                else:
+                    break
+            if tag_tuple[-1] == '<end>':
+                results.append(tag_tuple[:-1])
+            else:
+                results.append(tag_tuple)
+
+            true_value.append(extract_pos_tags_from_sentence_token_tuples(s))
+
+            return true_value, results
+
+
+
+
 
 if __name__ == '__main__':
     # create a dict with pos-to-pos probabilities and pos-to-word probabilities on the training set
     sentences = [[('This', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP'), ('.', 'PUNCT')],
                  [('That', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP')],
                  [('This', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP')]]
-
 
     def extract_pos_tags_from_sentence_token_tuples(sent):
         """
@@ -357,45 +373,40 @@ if __name__ == '__main__':
         """
         return [postag for token, postag in sent]
 
-
     data_dict = DataFetcher.read_data()
     train_data = DataFetcher.parse_conllu(data_dict['train'])
     dev_data = DataFetcher.parse_conllu(data_dict['dev'])
-    cleaned_train_data = DataFetcher.remove_empty_sentences(train_data + dev_data)
+    test_data = DataFetcher.parse_conllu(data_dict['test'])
 
-    data = treebank.tagged_sents()[:3000]
+    cleaned_train_data = DataFetcher.remove_empty_sentences(train_data + dev_data)
+    cleaned_test_data = DataFetcher.remove_empty_sentences(test_data)
 
     tagger = HMMTagger()
     tagger.fit(cleaned_train_data)
 
-    # pprint(tagger.emission_probabilities)
-    # print()
-    # pprint(tagger.transition_probabilities)
+    # Tag test sentences
+    results_train = list()
+    true_value_train = list()
 
-    test_sentences = [[('This', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP'), ('.', 'PUNCT')],
-                      [('That', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP')]]
-
-    test_data = DataFetcher.parse_conllu(data_dict['test'])
-    cleaned_test_data = DataFetcher.remove_empty_sentences(test_data)
-
-    # Tag sentences
-    results = list()
-    true_value = list()
-    for s in cleaned_test_data[:3]:
+    for s in cleaned_train_data:
         tag_tuples = tagger.tag(s)
-        if tag_tuples[-1] == '<end>':
-            results.append(tag_tuples[:-1])
+        tag_tuple = list()
+        for tag_tup in tag_tuples:
+            if tag_tup != '<end>':
+                tag_tuple.append(tag_tup)
+            else:
+                break
+        if tag_tuple[-1] == '<end>':
+            results_train.append(tag_tuple[:-1])
         else:
-            results.append(tag_tuples)
-        true_value.append(extract_pos_tags_from_sentence_token_tuples(s))
+            results_train.append(tag_tuple)
 
-    print()
-    pprint(results)
-    print(true_value)
+        true_value_train.append(extract_pos_tags_from_sentence_token_tuples(s))
 
-    pprint(tagger_classification_report(true_value, results))
+    pprint(tagger_classification_report(true_value_train, results_train)['clf_report'])
 
-    # tagger.create_benchmark_plot(cleaned_train_data, cleaned_test_data)
+    tagger.create_benchmark_plot(cleaned_train_data, cleaned_test_data)
+
 
     # ------------------------------------------------------------------
     # train data
