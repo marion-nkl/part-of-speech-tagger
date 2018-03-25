@@ -298,32 +298,17 @@ class HMMTagger:
 
             results['train_size'].append(len(train_x_part))
 
-            # fitting the model for the ginen sub training set
-            self.fit(train_x_part)
+            true_values_test, predictions_test = self.predict(train_x_part, test)
+            result_on_test = tagger_classification_report(true_values_test, predictions_test)
 
-            # checking the results always on the same test set
-            test_labels = [self.extract_pos_tags_from_sentence_token_tuples(x) for x in test]
-
-            print(test_labels)
-
-            predicted_labels = list()
-            for sent in test:
-                predicted_labels.append(self.tag(sent))
-
-            print(predicted_labels)
-
-            result_on_test = tagger_classification_report(test_labels, predicted_labels)
+            print('Result on test: {}'.format(result_on_test['accuracy']))
             results['on_test'].append(result_on_test['accuracy'])
 
-            # calculates the metrics for the given training part
-            train_labels = [self.extract_pos_tags_from_sentence_token_tuples(x) for x in train]
+            true_values_train, predictions_train = self.predict(train_x_part, train_x_part)
+            result_on_train = tagger_classification_report(true_values_train, predictions_train)
 
-            predicted_labels = list()
-            for sent in train:
-                predicted_labels.append(self.tag(sent))
-
-            result_on_train_part = tagger_classification_report(train_labels, predicted_labels)
-            results['on_train'].append(result_on_train_part['accuracy'])
+            print('Result on train: {}'.format(result_on_train['accuracy']))
+            results['on_train'].append(result_on_train['accuracy'])
 
             line_up, = ax.plot(results['train_size'], results['on_train'], 'o-', label='Accuracy on Train')
             line_down, = ax.plot(results['train_size'], results['on_test'], 'o-', label='Accuracy on Test')
@@ -337,7 +322,14 @@ class HMMTagger:
 
         return results
 
+    @staticmethod
     def predict(train, test):
+        """
+
+        :param train:
+        :param test:
+        :return:
+        """
         tagger = HMMTagger()
         tagger.fit(train)
 
@@ -361,7 +353,6 @@ class HMMTagger:
             true_value.append(extract_pos_tags_from_sentence_token_tuples(s))
 
             return true_value, results
-
 
     def evaluate(self, X, verbose=0):
         """
@@ -402,7 +393,6 @@ class HMMTagger:
         model_metadata['model'] = self.tagger
 
         return model_metadata
-
 
     def create_benchmark_plot(self,
                               train,
@@ -463,7 +453,7 @@ class HMMTagger:
 
             results['train_size'].append(len(train_x_part))
 
-            # fitting the model for the ginen sub training set
+            # fitting the model for the given sub training set
             self.fit(train_x_part)
 
             # checking the results always on the same test set
@@ -507,37 +497,36 @@ if __name__ == '__main__':
     data_dict = DataFetcher.read_data()
     train_data = DataFetcher.parse_conllu(data_dict['train'])
     dev_data = DataFetcher.parse_conllu(data_dict['dev'])
-    cleaned_train_data = DataFetcher.remove_empty_sentences(train_data + dev_data)
     test_data = DataFetcher.parse_conllu(data_dict['test'])
+
+    cleaned_train_data = DataFetcher.remove_empty_sentences(train_data + dev_data)
     cleaned_test_data = DataFetcher.remove_empty_sentences(test_data)
-    data = treebank.tagged_sents()[:3000]
 
+    tagger = HMMTagger()
+    tagger.fit(cleaned_train_data)
 
+    # Tag test sentences
+    results_train = list()
+    true_value_train = list()
 
+    for s in cleaned_train_data:
+        tag_tuples = tagger.tag(s)
+        tag_tuple = list()
+        for tag_tup in tag_tuples:
+            if tag_tup != '<end>':
+                tag_tuple.append(tag_tup)
+            else:
+                break
+        if tag_tuple[-1] == '<end>':
+            results_train.append(tag_tuple[:-1])
+        else:
+            results_train.append(tag_tuple)
 
+        true_value_train.append(extract_pos_tags_from_sentence_token_tuples(s))
 
+    pprint(tagger_classification_report(true_value_train, results_train)['clf_report'])
 
-    # pprint(tagger.emission_probabilities)
-    # print()
-    # pprint(tagger.transition_probabilities)
-
-    test_sentences = [[('This', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP'), ('.', 'PUNCT')],
-                      [('That', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP')]]
-
-    true_value_new, results_new = predict(cleaned_train_data,cleaned_test_data)
-
-
-
-    # print()
-    # print(true_value)
-    # print(results)
-
-
-    pprint(tagger_classification_report(true_value_new, results_new))
-
-    # create_benchmark_plot(cleaned_train_data, cleaned_test_data)
-
-
+    tagger.create_benchmark_plot_old(cleaned_train_data, cleaned_test_data)
 
 
     # ------------------------------------------------------------------
