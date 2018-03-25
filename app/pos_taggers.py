@@ -11,29 +11,26 @@ from sklearn.metrics import accuracy_score
 
 class Tagger:
     def __init__(self, tagger_type):
-        """
-
-        :param tagger_type:
-        """
         assert tagger_type in ['hmm', 'crf']
 
         self.X = None
         self.tagger = None
         self.tagger_type = tagger_type
+        self.train_data = None
 
-    def fit(self, X):
+    def fit(self, data):
         """
         Fits a tagging model to object's data based on object's tagger name
         :return: a tagger object
         """
         tagger = None
-        self.X = X
+        self.X = data
 
         if self.tagger_type == 'hmm':
             # Setup a trainer with default(None) values
             # And train with the data
             trainer = hmm.HiddenMarkovModelTrainer()
-            tagger = trainer.train_supervised(X)
+            tagger = trainer.train_supervised(data)
 
         elif self.tagger_type == 'crf':
             trainer = CRFTagger()
@@ -44,33 +41,16 @@ class Tagger:
 
         return tagger
 
-    def predict(self, X):
+    def evaluate(self, data):
         """
-
-        :param X:
-        :return:
+        Performs tagging in a dataset
+        :param data: list of lists with tuples of words and POS tags
+        :return: list with the actual labels of the input data, list with the predicted labels of the input data
         """
-
         y_pred = None
-
-        sentences_of_tokens = list()
-        for sentence in X:
-            words = [t[0] for t in sentence]
-            sentences_of_tokens.append(words)
-
-        # Predicting pos tag labels for all sentences in our testing set
-        if self.tagger:
-            y_pred = [self.tagger.tag(xseq) for xseq in sentences_of_tokens]
-
-        return y_pred
-
-    def evaluate(self, X):
-
-        y_pred = None
-
         sentences_of_tokens = list()
         y_true_tags = list()
-        for sentence in X:
+        for sentence in data:
             words = [t[0] for t in sentence]
             tags = [t[1] for t in sentence]
             sentences_of_tokens.append(words)
@@ -105,11 +85,9 @@ class Tagger:
         :param train: list. A list of lists of (word, pos-tag) tuples.
         :param test: list. A list of lists of (word, pos-tag) tuples.
         :param n_splits: int. Number of splits for the benchmarking. 20 splits every 5% of the training dataset.
-        :param params: dict. A dictionary containing the hyper parameters for the crf model.
         :param plot_outfile: str. A string in order to save the plot on disk.
         :param y_ticks: float. Number that defines the y_ticks.
         :param min_y_lim: float. Number that defines the minimum y limit of accuracy for the plot.
-        :return:
         """
 
         # placeholder for the metadata
@@ -151,14 +129,14 @@ class Tagger:
             results['train_size'].append(len(train_x_part))
 
             # fitting the model for the ginen sub training set
-            self.fit(X=train_x_part)
+            self.fit(data=train_x_part)
 
             # checking the results always on the same test set
-            result_on_test = self.evaluate(X=test)
+            result_on_test = self.evaluate(data=test)
             results['on_test'].append(result_on_test['accuracy'])
 
             # calculates the metrics for the given training part
-            result_on_train_part = self.evaluate(X=train_x_part)
+            result_on_train_part = self.evaluate(data=train_x_part)
             results['on_train'].append(result_on_train_part['accuracy'])
 
             print('Train Acc: {}'.format(round(100 * result_on_train_part['accuracy']), 2))
@@ -180,41 +158,9 @@ class Tagger:
 if __name__ == '__main__':
     data = treebank.tagged_sents()[:3000]
 
-    # data_dict = DataFetcher.read_data()
-    # train_data = DataFetcher.parse_conllu(data_dict['train'], 'xpostag')
-    # cleaned_train_data = DataFetcher.remove_empty_sentences(train_data)
-    #
-    # dev = [('This', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP')]
-    # test = 'This is a sentence'.split()
-    #
-    # hmm_obj = Tagger(cleaned_train_data, 'hmm')
-    # hmm_obj.fit()
-
-    # train data
-    # data_dict = DataFetcher.read_data()
-    # train_data = DataFetcher.parse_conllu(data_dict['train'])
-    # dev_data = DataFetcher.parse_conllu(data_dict['dev'])
-    # cleaned_train_data = DataFetcher.remove_empty_sentences(train_data + dev_data)
-
-    # print('-' * 30)
-    # print('HMM Tagger')
-    # print('Tagging with our dataset: {}'.format(hmm_obj.tagger.tag(test)))
-    # print('Evaluation: {}'.format(hmm_obj.tagger.evaluate([dev])))
-    # print('Tagging with nltk corpus: {}'.format(hmm_obj_nltk.tagger.tag(test)))
-    # print('Evaluation: {}'.format(hmm_obj_nltk.tagger.evaluate([dev])))
-
     # fit HMM model
-
-    train = data[:2000]
-    test = data[-1000:]
-
-    # tagger_obj = Tagger('hmm')
-    # tagger_obj.fit(X=train)
-    # preds = tagger_obj.predict(X=test)
-    # acc = tagger_obj.evaluate(X=test)
-
-    # print(preds)
-    # print(acc)
+    train_set = data[:2000]
+    test_set = data[-1000:]
 
     tagger_obj = Tagger('hmm')
-    tagger_obj.create_benchmark_plot(train=train, test=test)
+    tagger_obj.create_benchmark_plot(train=train_set, test=test_set)

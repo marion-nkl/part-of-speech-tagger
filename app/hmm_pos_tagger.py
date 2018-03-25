@@ -23,23 +23,6 @@ class HMMTagger:
         self._train_data = None
         self.viterbi = dict()
 
-        self.final_hmm = {0: {'<start>': {'argmax': None, 'viterbi': 2},
-                              'DT': {'argmax': None, 'viterbi': 0.5},
-                              'NNP': {'argmax': None, 'viterbi': 0},
-                              'VBZ': {'argmax': None, 'viterbi': 1}},
-                          1: {'<start>': {'argmax': 'NNP', 'viterbi': 0.0},
-                              'DT': {'argmax': 'NNP', 'viterbi': 0.0},
-                              'NNP': {'argmax': 'DT', 'viterbi': 0.0},
-                              'VBZ': {'argmax': 'DT', 'viterbi': 1.0}},
-                          2: {'<start>': {'argmax': 'NNP', 'viterbi': 0.0},
-                              'DT': {'argmax': 'NNP', 'viterbi': 2.0},
-                              'NNP': {'argmax': 'NNP', 'viterbi': 0.0},
-                              'VBZ': {'argmax': 'NNP', 'viterbi': 1.0}},
-                          3: {'<start>': {'argmax': 'NNP', 'viterbi': 0.0},
-                              'DT': {'argmax': 'NNP', 'viterbi': 2.0},
-                              'NNP': {'argmax': 'NNP', 'viterbi': 0.0},
-                              'VBZ': {'argmax': 'NNP', 'viterbi': 0.0}}}
-
     @staticmethod
     def extract_pos_tags_from_sentence_token_tuples(sent):
         """
@@ -61,16 +44,15 @@ class HMMTagger:
 
         sentence.insert(0, ('<start>', '<start>'))
         sentence.append(('<end>', '<end>'))
-        # sentence.insert(len(sentence), ('<end>', '<end>'))
 
         return sentence
 
-    def fit(self, X):
+    def fit(self, data):
         """
         Creates two probability dictionaries storing the POS-to-POS and the POS-to-WORD probabilities
-        :param X: list of lists of tuples, with sentences and their words with their POS tags
+        :param data: list of lists of tuples, with sentences and their words with their POS tags
         """
-        self._train_data = X
+        self._train_data = data
 
         for sentence in self._train_data:
             new_sentence = self._pad_sentence(sentence)
@@ -181,23 +163,6 @@ class HMMTagger:
 
                     self.viterbi[i]["<end>"]['viterbi'] = v_prev
                     self.viterbi[i]["<end>"]['argmax'] = previous_states[state_prev]
-                # # final step
-                # self.viterbi[i] = dict()
-                #
-                # previous_viterbi_list = list()
-                # previous_states = list()
-                # current_transitions = list()
-                # for state in self.viterbi[i - 1]:
-                #     self.viterbi[i]['<end>'] = dict()
-                #
-                #     previous_states.append(state)
-                #     previous_viterbi_list.append(self.viterbi[i - 1][state]['viterbi'])
-                #     current_transitions.append(self.transition_probabilities.get((state, '<end>'), 0.000001))
-                #
-                # v_prev, state_prev = self._find_max(previous_viterbi_list, current_transitions)
-                #
-                # self.viterbi[i]['<end>']['viterbi'] = v_prev
-                # self.viterbi[i]['<end>']['argmax'] = previous_states[state_prev]
 
     def _get_final_path(self):
         """
@@ -237,18 +202,18 @@ class HMMTagger:
         # return all the path but not the <end> final state
         return path[:-1]
 
-    def predict(self, X):
+    def evaluate(self, data):
         """
-
-        :param X:
-        :return:
+        Performs tagging in a dataset
+        :param data: list of lists with tuples of words and POS tags
+        :return: list with the actual labels of the input data, list with the predicted labels of the input data
         """
 
         # Tag sentences
         results = list()
         true_value = list()
 
-        for sentence in X:
+        for sentence in data:
 
             tag_tuples = self.tag(sentence)
             tag_tuples_list = list()
@@ -268,96 +233,95 @@ class HMMTagger:
 
         return true_value, results
 
-    def create_benchmark_plot(self,
-                              train,
-                              test,
-                              n_splits=20,
-                              plot_outfile=None,
-                              y_ticks=0.025,
-                              min_y_lim=0.0):
-        """
-        This method runs benchmarking for a crf model in order to check whether the classifier is learning.
-        Also, learning curves are created.
 
-        :param train: list. A list of lists of (word, pos-tag) tuples.
-        :param test: list. A list of lists of (word, pos-tag) tuples.
-        :param n_splits: int. Number of splits for the benchmarking. 20 splits every 5% of the training dataset.
-        :param params: dict. A dictionary containing the hyper parameters for the crf model.
-        :param plot_outfile: str. A string in order to save the plot on disk.
-        :param y_ticks: float. Number that defines the y_ticks.
-        :param min_y_lim: float. Number that defines the minimum y limit of accuracy for the plot.
-        :return:
-        """
+def create_benchmark_plot(train,
+                          test,
+                          n_splits=20,
+                          plot_outfile=None,
+                          y_ticks=0.025,
+                          min_y_lim=0.0):
+    """
+    This method runs benchmarking for a crf model in order to check whether the classifier is learning.
+    Also, learning curves are created.
 
-        # placeholder for the metadata
-        results = {'train_size': [], 'on_test': [], 'on_train': []}
+    :param train: list. A list of lists of (word, pos-tag) tuples.
+    :param test: list. A list of lists of (word, pos-tag) tuples.
+    :param n_splits: int. Number of splits for the benchmarking. 20 splits every 5% of the training dataset.
+    :param plot_outfile: str. A string in order to save the plot on disk.
+    :param y_ticks: float. Number that defines the y_ticks.
+    :param min_y_lim: float. Number that defines the minimum y limit of accuracy for the plot.
+    :return: dict, with benchmark values for the train and test datasets
+    """
 
-        # calculating the batch size.
-        split_size = int(len(train) / n_splits)
+    # placeholder for the metadata
+    results = {'train_size': [], 'on_test': [], 'on_train': []}
 
-        # setting parameters for the graph.
-        font_p = FontProperties()
-        font_p.set_size('small')
-        fig = plt.figure()
-        fig.suptitle('Learning Curves', fontsize=20)
-        ax = fig.add_subplot(111)
-        ax.axis(xmin=0, xmax=len(train) * 1.05, ymin=0, ymax=1.1)
-        plt.xlabel('N. of training instances', fontsize=18)
-        plt.ylabel('Accuracy', fontsize=16)
-        plt.grid(True)
-        plt.axvline(x=int(len(train) * 0.3))
+    # calculating the batch size.
+    split_size = int(len(train) / n_splits)
+
+    # setting parameters for the graph.
+    font_p = FontProperties()
+    font_p.set_size('small')
+    fig = plt.figure()
+    fig.suptitle('Learning Curves', fontsize=20)
+    ax = fig.add_subplot(111)
+    ax.axis(xmin=0, xmax=len(train) * 1.05, ymin=0, ymax=1.1)
+    plt.xlabel('N. of training instances', fontsize=18)
+    plt.ylabel('Accuracy', fontsize=16)
+    plt.grid(True)
+    plt.axvline(x=int(len(train) * 0.3))
+    plt.yticks(np.arange(0, 1.025, 0.025))
+
+    if y_ticks == 0.05:
+        plt.yticks(np.arange(0, 1.025, 0.05))
+    elif y_ticks == 0.025:
         plt.yticks(np.arange(0, 1.025, 0.025))
+    plt.ylim([min_y_lim, 1.025])
 
-        if y_ticks == 0.05:
-            plt.yticks(np.arange(0, 1.025, 0.05))
-        elif y_ticks == 0.025:
-            plt.yticks(np.arange(0, 1.025, 0.025))
-        plt.ylim([min_y_lim, 1.025])
+    # each time adds up one split and refits the model.
+    batch_size = split_size
 
-        # each time adds up one split and refits the model.
-        batch_size = split_size
+    for num in range(n_splits):
+        # each time adds up (concatenates) a new batch.
+        train_x_part = train[:batch_size]
+        batch_size += split_size
 
-        for num in range(n_splits):
-            # each time adds up (concatenates) a new batch.
-            train_x_part = train[:batch_size]
-            batch_size += split_size
+        print(20 * '*')
+        print('Split {} size: {}'.format(num, len(train_x_part)))
 
-            print(20 * '*')
-            print('Split {} size: {}'.format(num, len(train_x_part)))
+        results['train_size'].append(len(train_x_part))
 
-            results['train_size'].append(len(train_x_part))
+        obj = HMMTagger()
+        obj.fit(data=train_x_part)
 
-            self.fit(X=train_x_part)
+        y_test_true, y_test_pred = obj.evaluate(test)
+        result_on_test = tagger_classification_report(y_test_true, y_test_pred)
 
-            y_test_true, y_test_pred = self.predict(test)
-            result_on_test = tagger_classification_report(y_test_true, y_test_pred)
+        print('Result on test: {}'.format(result_on_test['accuracy']))
+        results['on_test'].append(result_on_test['accuracy'])
 
-            print('Result on test: {}'.format(result_on_test['accuracy']))
-            results['on_test'].append(result_on_test['accuracy'])
+        y_train_true, y_train_pred = obj.evaluate(train_x_part)
+        result_on_train = tagger_classification_report(y_train_true, y_train_pred)
 
-            y_train_true, y_train_pred = self.predict(train_x_part)
-            result_on_train = tagger_classification_report(y_train_true, y_train_pred)
+        print('Result on train: {}'.format(result_on_train['accuracy']))
+        results['on_train'].append(result_on_train['accuracy'])
 
-            print('Result on train: {}'.format(result_on_train['accuracy']))
-            results['on_train'].append(result_on_train['accuracy'])
+        line_up, = ax.plot(results['train_size'], results['on_train'], 'o-', label='Accuracy on Train')
+        line_down, = ax.plot(results['train_size'], results['on_test'], 'o-', label='Accuracy on Test')
 
-            line_up, = ax.plot(results['train_size'], results['on_train'], 'o-', label='Accuracy on Train')
-            line_down, = ax.plot(results['train_size'], results['on_test'], 'o-', label='Accuracy on Test')
+        plt.legend([line_up, line_down], ['Accuracy on Train', 'Accuracy on Test'], prop=font_p)
 
-            plt.legend([line_up, line_down], ['Accuracy on Train', 'Accuracy on Test'], prop=font_p)
+    if plot_outfile:
+        fig.savefig(plot_outfile)
 
-        if plot_outfile:
-            fig.savefig(plot_outfile)
+    plt.show()
 
-        plt.show()
-
-        return results
+    return results
 
 
-def main():
+def run_benchmark_process():
     """
-
-    :return:
+    Runs benchmark process which trains sub-datasets (train, dev, test) and creates a matplotlib benchmark plot
     """
     data_dict = DataFetcher.read_data()
     train_data = DataFetcher.parse_conllu(data_dict['train'])
@@ -367,42 +331,10 @@ def main():
     cleaned_train_data = DataFetcher.remove_empty_sentences(train_data + dev_data)
     cleaned_test_data = DataFetcher.remove_empty_sentences(test_data)
 
-    tagger_obj = HMMTagger()
-    tagger_obj.fit(cleaned_train_data)
-
-    y_true, y_pred = tagger_obj.predict(X=cleaned_test_data)
-
-    tagger_metadata = tagger_classification_report(y_true, y_pred)
-
-    print(tagger_metadata['clf_report'])
-
-    return tagger_metadata
-
-
-def main_benchmark():
-    """
-
-    :return:
-    """
-    data_dict = DataFetcher.read_data()
-    train_data = DataFetcher.parse_conllu(data_dict['train'])
-    dev_data = DataFetcher.parse_conllu(data_dict['dev'])
-    test_data = DataFetcher.parse_conllu(data_dict['test'])
-
-    cleaned_train_data = DataFetcher.remove_empty_sentences(train_data + dev_data)
-    cleaned_test_data = DataFetcher.remove_empty_sentences(test_data)
-
-    obj = HMMTagger()
-
-    obj.create_benchmark_plot(train=cleaned_train_data,
-                              test=cleaned_test_data,
-                              n_splits=20)
+    create_benchmark_plot(train=cleaned_train_data,
+                          test=cleaned_test_data,
+                          n_splits=10)
 
 
 if __name__ == '__main__':
-    # # create a dict with pos-to-pos probabilities and pos-to-word probabilities on the training set
-    # sentences = [[('This', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP'), ('.', 'PUNCT')],
-    #              [('That', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP')],
-    #              [('This', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP')]]
-
-    main_benchmark()
+    run_benchmark_process()

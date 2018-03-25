@@ -24,9 +24,6 @@ GRID_SEARCH_CRF_MODEL_FILE_PATH = os.path.join(MODELS_DIR, 'temp_crf_model_en.cr
 class CRFTagger:
 
     def __init__(self):
-        """
-
-        """
         self.tagger = None
 
     @staticmethod
