@@ -1,8 +1,9 @@
-from app.data_fetcher import DataFetcher
-import seaborn as sns
 import matplotlib.pyplot as plt
 import pandas as pd
-from pprint import pprint
+import seaborn as sns
+
+from app.data_fetcher import DataFetcher
+
 
 def plot_data_stats(data):
     """
@@ -22,8 +23,8 @@ def plot_data_stats(data):
 
     plt.show()
 
-if __name__ == "__main__":
 
+if __name__ == "__main__":
     # Load the data
     data_dict = DataFetcher.read_data(files_list=['train', 'dev', 'test'])
 

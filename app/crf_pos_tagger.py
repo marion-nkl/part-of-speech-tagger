@@ -1,8 +1,12 @@
 import os
 from collections import Counter
+from itertools import chain
 
+import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import pycrfsuite
+from matplotlib.font_manager import FontProperties
 from numpy import mean
 
 from app import MODELS_DIR
@@ -10,6 +14,7 @@ from app.data_fetcher import DataFetcher
 from app.evaluation import crf_tagger_classification_report, print_crf_transitions
 from app.utils import feed_crf_params, feed_cross_validation
 
+plt.rcParams['figure.figsize'] = (16, 8)
 pd.set_option('display.expand_frame_repr', False)
 
 CRF_MODEL_FILE_PATH = os.path.join(MODELS_DIR, 'crf_model_en.crfsuite')
@@ -153,8 +158,7 @@ def train_crf_model(training_sentences,
         tagger = pycrfsuite.Tagger()
         tagger.open(filepath)
 
-    model_accuracy = None
-
+    model_accuracy, y_test, y_pred = None, None, None
     # if we have test sentences we run predictions and test the CRF pos tagger.
     if test_sentences:
 
@@ -187,7 +191,13 @@ def train_crf_model(training_sentences,
             # calculating the least likely transitions for POS TAGS sequences
             print_crf_transitions(Counter(info.transitions).most_common()[-15:])
 
-    return {'model': tagger, 'accuracy': model_accuracy}
+            y_test = list(chain.from_iterable(y_test))
+            y_pred = list(chain.from_iterable(y_pred))
+
+    return {'model': tagger,
+            'accuracy': model_accuracy,
+            'y_true': y_test,
+            'y_pred': y_pred}
 
 
 def print_crf_tagger_example(trained_tagger, sentence):
@@ -291,6 +301,197 @@ def get_grid_search_crf_model(training_sentences,
     return best_model_meta
 
 
+def crf_benchmark(train, test, params):
+    """
+    This function calculates metrics for evaluation of a CRF POS TAGGER classifier over a training and a test set.
+
+    :param train: list
+    :param test: list
+    :param params: dict
+    :return: dict
+    """
+    model_meta = train_crf_model(training_sentences=train,
+                                 test_sentences=test,
+                                 params=params,
+                                 verbose=0,
+                                 load_model=False)
+
+    y_true = model_meta['y_true']
+    y_pred = model_meta['y_pred']
+
+    res = crf_tagger_classification_report(y_true, y_pred)
+
+    return res
+
+
+def create_benchmark_plot(train,
+                          test,
+                          n_splits=20,
+                          params=None,
+                          plot_outfile=None,
+                          y_ticks=0.025,
+                          min_y_lim=0.4):
+    """
+
+    :param train:
+    :param test:
+    :param n_splits:
+    :param params:
+    :param plot_outfile:
+    :param y_ticks:
+    :param min_y_lim:
+    :return:
+    """
+
+    results = {'train_size': [], 'on_test': [], 'on_train': []}
+
+    split_size = int(len(train) / n_splits)
+
+    # setting parameters for the graph.
+    font_p = FontProperties()
+
+    font_p.set_size('small')
+
+    fig = plt.figure()
+    fig.suptitle('Learning Curves', fontsize=20)
+
+    ax = fig.add_subplot(111)
+    ax.axis(xmin=0, xmax=len(train) * 1.05, ymin=0, ymax=1.1)
+
+    plt.xlabel('N. of training instances', fontsize=18)
+    plt.ylabel('Accuracy', fontsize=16)
+
+    plt.grid(True)
+
+    plt.axvline(x=int(len(train) * 0.3))
+    plt.yticks(np.arange(0, 1.025, 0.025))
+
+    if y_ticks == 0.05:
+        plt.yticks(np.arange(0, 1.025, 0.05))
+
+    elif y_ticks == 0.025:
+        plt.yticks(np.arange(0, 1.025, 0.025))
+
+    plt.ylim([min_y_lim, 1.025])
+
+    # each time adds up one split and refits the model.
+    counter = split_size
+    for i in range(n_splits):
+        train_x_part = train[:counter]
+        counter += split_size
+
+        print(20 * '*')
+        print('Split {} size: {}'.format(i, len(train_x_part)))
+
+        results['train_size'].append(len(train_x_part))
+
+        result_on_test = crf_benchmark(train=train_x_part, test=test, params=params)
+
+        # calculates each time the metrics also on the test.
+        results['on_test'].append(result_on_test['accuracy'])
+
+        # calculates the metrics for the given training part
+        result_on_train_part = crf_benchmark(train=train_x_part, test=train_x_part, params=params)
+
+        results['on_train'].append(result_on_train_part['accuracy'])
+
+        line_up, = ax.plot(results['train_size'], results['on_train'], 'o-', label='Accuracy on Train')
+
+        line_down, = ax.plot(results['train_size'], results['on_test'], 'o-', label='Accuracy on Test')
+
+        plt.legend([line_up, line_down], ['Accuracy on Train', 'Accuracy on Test'], prop=font_p)
+
+    if plot_outfile:
+        fig.savefig(plot_outfile)
+
+    plt.show()
+
+    return results
+
+
+def main_grid_search():
+    """
+
+    :return:
+    """
+    # fetches and creates a dict containing the train, dev and test data.
+    data_dict = DataFetcher.read_data(files_list=['train', 'dev', 'test'])
+
+    # extracting train, dev, and test datasets
+    train_data = DataFetcher.parse_conllu(data_dict['train'])
+    dev_data = DataFetcher.parse_conllu(data_dict['dev'])
+    test_data = DataFetcher.parse_conllu(data_dict['test'])
+
+    # removing any empty sentences from the datasets.
+    train_sentences = DataFetcher.remove_empty_sentences(train_data)
+    dev_sentences = DataFetcher.remove_empty_sentences(dev_data)
+    test_sentences = DataFetcher.remove_empty_sentences(test_data)
+
+    # concatenating the train and held out (dev) dataset in order to feed it for cross validation.
+    train_dev_sentences = train_sentences + dev_sentences
+
+    # setting the Grid Search CV parameters. All combinations will be tested.
+    grid_params = {
+        'c1': [1.0, 0.1, 0.01],  # coeff for L1 penalty
+        'c2': [1.0, 0.1, 0.01],  # coeff for L2 penalty
+        'max_iterations': [50, 100, 200, 250],  # stop earlier
+        'feature.possible_transitions': [True, False]  # include transitions that are possible, but not observed
+    }
+
+    # Running grid search CV. Obtaining the best model and testing it in the 'unseen' test dataset.
+    model_results = get_grid_search_crf_model(training_sentences=train_dev_sentences,
+                                              test_sentences=test_sentences,
+                                              grid_params=grid_params,
+                                              k_folds=3,
+                                              verbose=1)
+
+    # extracting the best model (pos tagger)
+    grid_search_best_trained_tagger = model_results['model']
+
+    # running a hands on example for a random testing sentence.
+    example_sent = test_sentences[0]
+    print_crf_tagger_example(trained_tagger=grid_search_best_trained_tagger, sentence=dev_sentences[0])
+
+
+def main_best_crf_model():
+    """
+
+    :return:
+    """
+    # fetches and creates a dict containing the train, dev and test data.
+    data_d = DataFetcher.read_data(files_list=['train', 'dev', 'test'])
+
+    # extracting train, dev, and test data sets
+    train_dataset = DataFetcher.parse_conllu(data_d['train'])
+    dev_dataset = DataFetcher.parse_conllu(data_d['dev'])
+    test_dataset = DataFetcher.parse_conllu(data_d['test'])
+
+    # removing any empty sentences (lists) from the data sets.
+    train_sentences = DataFetcher.remove_empty_sentences(train_dataset)
+    dev_sentences = DataFetcher.remove_empty_sentences(dev_dataset)
+    test_sentences = DataFetcher.remove_empty_sentences(test_dataset)
+
+    # concatenating the train and held out (dev) dataset in order to feed it for cross validation.
+    train_dev_sentences = train_sentences + dev_sentences
+
+    # Best parameters:
+    params = {
+        'c1': 0.1,  # coefficient for L1 penalty
+        'c2': 0.1,  # coefficient for L2 penalty
+        'max_iterations': 200,  # stop earlier
+        'feature.possible_transitions': True  # include transitions that are possible, but not observed
+    }
+
+    out = train_crf_model(training_sentences=train_dev_sentences,
+                          test_sentences=test_sentences,
+                          params=params,
+                          verbose=1,
+                          filepath=CRF_MODEL_FILE_PATH,
+                          load_model=False)
+
+    return out
+
+
 if __name__ == "__main__":
     # fetches and creates a dict containing the train, dev and test data.
     data_dict = DataFetcher.read_data(files_list=['train', 'dev', 'test'])
@@ -308,25 +509,10 @@ if __name__ == "__main__":
     # concatenating the train and held out (dev) dataset in order to feed it for cross validation.
     train_dev_sents = train_sents + dev_sents
 
-    # setting the Grid Search CV parameters. All combinations will be tested.
-    grid_params = {
-        'c1': [1.0, 0.1, 0.01],  # coeff for L1 penalty
-        'c2': [1.0, 0.1, 0.01],  # coeff for L2 penalty
-        'max_iterations': [50, 100, 200, 250],  # stop earlier
-        'feature.possible_transitions': [True, False]  # include transitions that are possible, but not observed
-    }
+    # Best parameters:
+    params = {'c1': 0.1, 'c2': 0.1, 'max_iterations': 200, 'feature.possible_transitions': True}
 
-    # Running grid search CV. Obtaining the best model and testing it in the 'unseen' test dataset.
-    model_results = get_grid_search_crf_model(training_sentences=train_dev_sents,
-                                              test_sentences=test_sents,
-                                              grid_params=grid_params,
-                                              k_folds=3,
-                                              verbose=1)
-
-    # extracting the best model (pos tagger)
-    grid_search_best_trained_tagger = model_results['model']
-
-    # running a hands on example for a random testing sentence.
-    example_sent = test_sents[0]
-    print_crf_tagger_example(trained_tagger=grid_search_best_trained_tagger,
-                             sentence=dev_sents[0])
+    create_benchmark_plot(train=train_dev_sents,
+                          test=test_sents,
+                          n_splits=20,
+                          params=params)
