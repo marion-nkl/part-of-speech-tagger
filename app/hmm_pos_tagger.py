@@ -1,6 +1,7 @@
 from pprint import pprint
 import numpy as np
 from nltk.corpus import treebank
+from operator import add
 
 from app.data_fetcher import DataFetcher
 
@@ -46,7 +47,7 @@ class HMMTagger:
         """
 
         sentence.insert(0, ('<start>', '<start>'))
-        sentence.insert(len(sentence), ('<end>', '<end>'))
+        # sentence.insert(len(sentence), ('<end>', '<end>'))
 
         return sentence
 
@@ -96,14 +97,13 @@ class HMMTagger:
         """
         Find the max value kai the max arg for a matrix (output of an element-wise multiplication between previous
         viterbi probabilities: v, and transitions probabilities: a
-        :param viterbi_previous: list with viterbi probabilities of the previous state
+        :param viterbi_previous: list with viterbi log probabilities of the previous state
         :param transition_prob: list with transition probabilities for each previous state to the current
         :return: the max value and max arg
         """
-        v = np.array(viterbi_previous)
-        t = np.array(transition_prob)
-        max_value = np.max(np.multiply(v, t))
-        max_state = np.argmax(np.multiply(v, t))
+        transition_prob_log = list(np.log(transition_prob))
+        max_value = np.max(np.add(viterbi_previous, transition_prob_log))
+        max_state = np.argmax(np.add(viterbi_previous, transition_prob_log))
         return max_value, max_state
 
     def _viterbi(self, sequence):
@@ -117,10 +117,10 @@ class HMMTagger:
         # initialization
         for state in self.states:
             self.viterbi[0][state] = dict()
-            a = self.transition_probabilities.get(('<start>', state), 0)
-            b = self.emission_probabilities.get((state, word), 0)
+            a = self.transition_probabilities.get(('<start>', state), 1)
+            b = self.emission_probabilities.get((state, word), 1)
 
-            self.viterbi[0][state]['viterbi'] = a * b
+            self.viterbi[0][state]['viterbi'] = np.log(a) * np.log(b)
             self.viterbi[0][state]['argmax'] = None
 
         # fill in
@@ -128,7 +128,7 @@ class HMMTagger:
             self.viterbi[i] = dict()
             for state in self.states:
                 self.viterbi[i][state] = dict()
-                b = self.emission_probabilities.get((state, sequence[i][0]), 0)
+                b = self.emission_probabilities.get((state, sequence[i][0]), 1)
 
                 # For each previous state find the max viterbi
                 previous_viterbi_list = list()
@@ -138,12 +138,12 @@ class HMMTagger:
                 for state_prev in self.viterbi[i - 1]:
                     previous_states.append(state_prev)
                     previous_viterbi_list.append(self.viterbi[i - 1][state_prev]['viterbi'])
-                    current_transitions.append(self.transition_probabilities.get((state_prev, state), 0))
+                    current_transitions.append(self.transition_probabilities.get((state_prev, state), 1))
 
                 v_prev, state_prev = self._find_max(previous_viterbi_list, current_transitions)
 
                 # fill table
-                self.viterbi[i][state]['viterbi'] = b * v_prev
+                self.viterbi[i][state]['viterbi'] = np.log(b) + v_prev
                 self.viterbi[i][state]['argmax'] = previous_states[state_prev]
 
     def _get_final_path(self):
@@ -183,8 +183,8 @@ class HMMTagger:
 
 if __name__ == '__main__':
     # # create a dict with pos-to-pos probabilities and pos-to-word probabilities on the training set
-    sentences = [[('This', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP')],
-                 [('This', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP')],
+    sentences = [[('This', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP'), ('.', 'PUNCT')],
+                 [('That', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP')],
                  [('This', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP')]]
 
     data_dict = DataFetcher.read_data()
@@ -200,12 +200,11 @@ if __name__ == '__main__':
     print()
     pprint(tagger.transition_probabilities)
 
-    test_sentences = [[('This', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP')],
-                      [('This', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP')]]
+    test_sentences = [[('This', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP'), ('.', 'PUNCT')],
+                      [('That', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP')]]
 
     print()
     print(tagger.tag(test_sentences[0]))
 
     print()
     pprint(tagger.viterbi)
-
