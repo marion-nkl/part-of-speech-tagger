@@ -12,7 +12,7 @@ from numpy import random
 
 from app import MODELS_DIR
 from app.data_fetcher import DataFetcher
-from app.evaluation import crf_tagger_classification_report, print_crf_transitions
+from app.evaluation import tagger_classification_report, print_crf_transitions
 
 plt.rcParams['figure.figsize'] = (16, 8)
 pd.set_option('display.expand_frame_repr', False)
@@ -265,7 +265,7 @@ class CRFTagger:
         y_pred = self.predict(X)
 
         # calculating metrics and creating classification report.
-        model_metadata = crf_tagger_classification_report(y_test, y_pred)
+        model_metadata = tagger_classification_report(y_test, y_pred)
 
         model_accuracy = model_metadata['accuracy']
         model_clf_report = model_metadata['clf_report']

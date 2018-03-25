@@ -36,7 +36,7 @@ def create_report(y_true, y_pred, classes=None):
     return confusion
 
 
-def crf_tagger_classification_report(y_true, y_pred):
+def tagger_classification_report(y_true, y_pred):
     """
     Classification report for a list of pos-tags-encoded sequences. It computes token-level metrics
 
