@@ -50,7 +50,8 @@ class HMMTagger:
         """
 
         sentence.insert(0, ('<start>', '<start>'))
-        sentence.insert(len(sentence), ('<end>', '<end>'))
+        sentence.append(('<end>', '<end>'))
+        # sentence.insert(len(sentence), ('<end>', '<end>'))
 
         return sentence
 
@@ -133,19 +134,19 @@ class HMMTagger:
         # initialization
         for state in self.states:
             self.viterbi[0][state] = dict()
-            a = self.transition_probabilities.get(('<start>', state), 1)
-            b = self.emission_probabilities.get((state, word), 1)
+            a = self.transition_probabilities.get(('<start>', state), 0.000001)
+            b = self.emission_probabilities.get((state, word), 0.000001)
 
             self.viterbi[0][state]['viterbi'] = np.log(a) + np.log(b)
             self.viterbi[0][state]['argmax'] = None
 
         # fill in for the rest of the steps /words
-        for i in range(1, len(sequence) + 1):
+        for i in range(1, len(sequence)+ 1):
             if i != (len(sequence)):
                 self.viterbi[i] = dict()
                 for state in self.states:
                     self.viterbi[i][state] = dict()
-                    b = self.emission_probabilities.get((state, sequence[i][0]), 1)
+                    b = self.emission_probabilities.get((state, sequence[i][0]), 0.000001)
 
                     # For each previous state find the max viterbi
                     previous_viterbi_list = list()
@@ -156,7 +157,7 @@ class HMMTagger:
                         if state_prev != '<start>':
                             previous_states.append(state_prev)
                             previous_viterbi_list.append(self.viterbi[i - 1][state_prev]['viterbi'])
-                            current_transitions.append(self.transition_probabilities.get((state_prev, state), 1))
+                            current_transitions.append(self.transition_probabilities.get((state_prev, state), 0.000001))
 
                     v_prev, state_prev = self._find_max(previous_viterbi_list, current_transitions)
 
@@ -172,16 +173,32 @@ class HMMTagger:
                 previous_states = list()
                 current_transitions = list()
                 for state in self.viterbi[i - 1]:
-                    self.viterbi[i]['<end>'] = dict()
-
                     previous_states.append(state)
                     previous_viterbi_list.append(self.viterbi[i - 1][state]['viterbi'])
                     current_transitions.append(self.transition_probabilities.get((state, '<end>'), 1))
 
-                v_prev, state_prev = self._find_max(previous_viterbi_list, current_transitions)
+                    self.viterbi[i]["<end>"] = dict()
+                    v_prev, state_prev = self._find_max(previous_viterbi_list, current_transitions)
 
-                self.viterbi[i]['<end>']['viterbi'] = v_prev
-                self.viterbi[i]['<end>']['argmax'] = previous_states[state_prev]
+                    self.viterbi[i]["<end>"]['viterbi'] = v_prev
+                    self.viterbi[i]["<end>"]['argmax'] = previous_states[state_prev]
+                # # final step
+                # self.viterbi[i] = dict()
+                #
+                # previous_viterbi_list = list()
+                # previous_states = list()
+                # current_transitions = list()
+                # for state in self.viterbi[i - 1]:
+                #     self.viterbi[i]['<end>'] = dict()
+                #
+                #     previous_states.append(state)
+                #     previous_viterbi_list.append(self.viterbi[i - 1][state]['viterbi'])
+                #     current_transitions.append(self.transition_probabilities.get((state, '<end>'), 0.000001))
+                #
+                # v_prev, state_prev = self._find_max(previous_viterbi_list, current_transitions)
+                #
+                # self.viterbi[i]['<end>']['viterbi'] = v_prev
+                # self.viterbi[i]['<end>']['argmax'] = previous_states[state_prev]
 
     def _get_final_path(self):
         """
@@ -198,7 +215,7 @@ class HMMTagger:
             for state in self.viterbi[s]:
                 state_list.append(state)
                 viterbi_p.append(self.viterbi[s][state]['viterbi'])
-                transition_a.append(self.transition_probabilities.get((s, '<end>'), 1))
+                transition_a.append(self.transition_probabilities.get((s, '<end>'), 0.000001))
 
             position = np.argmax(viterbi_p + np.log(transition_a))
             final_path.append(state_list[position])
@@ -323,10 +340,19 @@ class HMMTagger:
 
 
 if __name__ == '__main__':
-    # # create a dict with pos-to-pos probabilities and pos-to-word probabilities on the training set
+    # create a dict with pos-to-pos probabilities and pos-to-word probabilities on the training set
     sentences = [[('This', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP'), ('.', 'PUNCT')],
                  [('That', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP')],
                  [('This', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP')]]
+
+    def extract_pos_tags_from_sentence_token_tuples(sent):
+        """
+        This function extracts the pos tags (labels in general) from a given iterable of (token, label) tuples.
+
+        :param sent: list. An iterable of (word, pos-tag) tuples.
+        :return: list. An iterable of pos tags.
+        """
+        return [postag for token, postag in sent]
 
     data_dict = DataFetcher.read_data()
     train_data = DataFetcher.parse_conllu(data_dict['train'])
@@ -336,7 +362,7 @@ if __name__ == '__main__':
     data = treebank.tagged_sents()[:3000]
 
     tagger = HMMTagger()
-    # tagger.fit(cleaned_train_data)
+    tagger.fit(cleaned_train_data)
 
     # pprint(tagger.emission_probabilities)
     # print()
@@ -350,21 +376,28 @@ if __name__ == '__main__':
 
     # Tag sentences
     results = list()
-    # for s in test_sentences:
-        # results.append(tagger.tag(s))
+    true_value = list()
+    for s in cleaned_test_data[:3]:
+        tag_tuples = tagger.tag(s)
+        if tag_tuples[-1] == '<end>':
+            results.append(tag_tuples[:-1])
+        else:
+            results.append(tag_tuples)
+        true_value.append(extract_pos_tags_from_sentence_token_tuples(s))
 
     print()
     pprint(results)
+    print(true_value)
 
-    # pprint(tagger_classification_report(results, results))
+    pprint(tagger_classification_report(true_value, results))
 
-    tagger.create_benchmark_plot(cleaned_train_data, cleaned_test_data)
+    # tagger.create_benchmark_plot(cleaned_train_data, cleaned_test_data)
 
 
 
 
     # ------------------------------------------------------------------
-    # # train data
+    # train data
     # data_dict = DataFetcher.read_data()
     # train_data = DataFetcher.parse_conllu(data_dict['train'])
     # dev_data = DataFetcher.parse_conllu(data_dict['dev'])
@@ -378,8 +411,10 @@ if __name__ == '__main__':
     #
     # # Tag sentences
     # results = list()
+    # true_value = list()
     # for s in cleaned_test_data:
     #     results.append(tagger.tag(s))
+    #     true_value.append(extract_pos_tags_from_sentence_token_tuples(s))
     #
     # # evaluation report
-    # pprint(tagger_classification_report(results, results))
+    # pprint(tagger_classification_report(true_value, results))
