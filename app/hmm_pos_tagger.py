@@ -238,7 +238,7 @@ class HMMTagger:
         # return all the path but not the <end> final state
         return path[:-1]
 
-    def create_benchmark_plot_old(self,
+    def create_benchmark_plot(self,
                               train,
                               test,
                               n_splits=20,
@@ -354,130 +354,9 @@ class HMMTagger:
 
             return true_value, results
 
-    def evaluate(self, X, verbose=0):
-        """
-        This method uses a pre trained crf pos tagger in order to make evaluations on known data sets.
-        :param X: A list of lists of (word, pos-tag) tuples.
-        :param verbose: Int. Level of verbosity
-        :return: dict. A dictionary containing several metadata about the model's evaluation.
-        """
 
-        # extracting the labels (pos tags) for the sentences
-        y_test = [self.extract_pos_tags_from_sentence_token_tuples(s) for s in X]
 
-        # Predicting pos tag labels for all sentences in our set
-        y_pred = self.predict(X)
 
-        # calculating metrics and creating classification report.
-        model_metadata = tagger_classification_report(y_test, y_pred)
-
-        model_accuracy = model_metadata['accuracy']
-        model_clf_report = model_metadata['clf_report']
-        # Checking what classifier has learned
-        info = self.tagger.info()
-
-        if verbose > 0:
-            print('Model Accuracy: {}'.format(model_accuracy), end='\n\n')
-
-        if verbose > 1:
-            print(model_clf_report)
-
-            print("\nTop likely Pos Tags transitions:")
-            # calculating the most likely transitions for POS TAGS sequences
-            print_crf_transitions(Counter(info.transitions).most_common(10))
-
-            print("\nTop unlikely Pos Tags transitions:")
-            # calculating the least likely transitions for POS TAGS sequences
-            print_crf_transitions(Counter(info.transitions).most_common()[-10:])
-
-        model_metadata['model'] = self.tagger
-
-        return model_metadata
-
-    def create_benchmark_plot(self,
-                              train,
-                              test,
-                              n_splits=20,
-                              plot_outfile=None,
-                              y_ticks=0.025,
-                              min_y_lim=0.0):
-        """
-        This method runs benchmarking for a crf model in order to check whether the classifier is learning.
-        Also, learning curves are created.
-
-        :param train: list. A list of lists of (word, pos-tag) tuples.
-        :param test: list. A list of lists of (word, pos-tag) tuples.
-        :param n_splits: int. Number of splits for the benchmarking. 20 splits every 5% of the training dataset.
-        :param params: dict. A dictionary containing the hyper parameters for the crf model.
-        :param plot_outfile: str. A string in order to save the plot on disk.
-        :param y_ticks: float. Number that defines the y_ticks.
-        :param min_y_lim: float. Number that defines the minimum y limit of accuracy for the plot.
-        :return:
-        """
-
-        # placeholder for the metadata
-        results = {'train_size': [], 'on_test': [], 'on_train': []}
-
-        # calculating the batch size.
-        split_size = int(len(train) / n_splits)
-
-        # setting parameters for the graph.
-        font_p = FontProperties()
-        font_p.set_size('small')
-        fig = plt.figure()
-        fig.suptitle('Learning Curves', fontsize=20)
-        ax = fig.add_subplot(111)
-        ax.axis(xmin=0, xmax=len(train) * 1.05, ymin=0, ymax=1.1)
-        plt.xlabel('N. of training instances', fontsize=18)
-        plt.ylabel('Accuracy', fontsize=16)
-        plt.grid(True)
-        plt.axvline(x=int(len(train) * 0.3))
-        plt.yticks(np.arange(0, 1.025, 0.025))
-
-        if y_ticks == 0.05:
-            plt.yticks(np.arange(0, 1.025, 0.05))
-        elif y_ticks == 0.025:
-            plt.yticks(np.arange(0, 1.025, 0.025))
-        plt.ylim([min_y_lim, 1.025])
-
-        # each time adds up one split and refits the model.
-        batch_size = split_size
-
-        for num in range(n_splits):
-            # each time adds up (concatenates) a new batch.
-            train_x_part = train[:batch_size]
-            batch_size += split_size
-
-            print(20 * '*')
-            print('Split {} size: {}'.format(num, len(train_x_part)))
-
-            results['train_size'].append(len(train_x_part))
-
-            # fitting the model for the given sub training set
-            self.fit(train_x_part)
-
-            # checking the results always on the same test set
-            result_on_test = self.evaluate(X=test)
-            results['on_test'].append(result_on_test['accuracy'])
-
-            # calculates the metrics for the given training part
-            result_on_train_part = self.evaluate(X=train_x_part)
-            results['on_train'].append(result_on_train_part['accuracy'])
-
-            print('Train Acc: {}'.format(round(100 * result_on_train_part['accuracy']), 2))
-            print('Test Acc: {}'.format(round(100 * result_on_test['accuracy'], 2)))
-
-            line_up, = ax.plot(results['train_size'], results['on_train'], 'o-', label='Accuracy on Train')
-            line_down, = ax.plot(results['train_size'], results['on_test'], 'o-', label='Accuracy on Test')
-
-            plt.legend([line_up, line_down], ['Accuracy on Train', 'Accuracy on Test'], prop=font_p)
-
-        if plot_outfile:
-            fig.savefig(plot_outfile)
-
-        plt.show()
-
-        return results
 
 if __name__ == '__main__':
     # create a dict with pos-to-pos probabilities and pos-to-word probabilities on the training set
@@ -526,7 +405,7 @@ if __name__ == '__main__':
 
     pprint(tagger_classification_report(true_value_train, results_train)['clf_report'])
 
-    tagger.create_benchmark_plot_old(cleaned_train_data, cleaned_test_data)
+    tagger.create_benchmark_plot(cleaned_train_data, cleaned_test_data)
 
 
     # ------------------------------------------------------------------
