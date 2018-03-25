@@ -47,7 +47,7 @@ class HMMTagger:
         """
 
         sentence.insert(0, ('<start>', '<start>'))
-        # sentence.insert(len(sentence), ('<end>', '<end>'))
+        sentence.insert(len(sentence), ('<end>', '<end>'))
 
         return sentence
 
@@ -60,8 +60,7 @@ class HMMTagger:
 
         for sentence in self._train_data:
             new_sentence = self._pad_sentence(sentence)
-            for i in range(len(new_sentence) - 1):
-
+            for i in range(len(new_sentence)):
                 self.states.add(new_sentence[i][1])
 
                 try:
@@ -78,7 +77,8 @@ class HMMTagger:
                     self.transition_probabilities[new_sentence[i][1], new_sentence[i + 1][1]] += 1
                 except KeyError:
                     self.transition_probabilities[new_sentence[i][1], new_sentence[i + 1][1]] = 1
-
+                except IndexError:
+                    pass
                 try:
                     self.emission_probabilities[new_sentence[i][1], new_sentence[i][0]] += 1
                 except KeyError:
@@ -91,6 +91,9 @@ class HMMTagger:
         for state_word_pair in self.emission_probabilities:
             self.emission_probabilities[state_word_pair] = self.emission_probabilities[state_word_pair] / \
                                                            self._state_frequencies[state_word_pair[0]]
+
+        self.states.remove('<start>')
+        self.states.remove('<end>')
 
     @staticmethod
     def _find_max(viterbi_previous, transition_prob):
@@ -115,36 +118,62 @@ class HMMTagger:
         self.viterbi[0] = dict()
 
         # initialization
+        print('First step')
         for state in self.states:
             self.viterbi[0][state] = dict()
             a = self.transition_probabilities.get(('<start>', state), 1)
             b = self.emission_probabilities.get((state, word), 1)
 
-            self.viterbi[0][state]['viterbi'] = np.log(a) * np.log(b)
+            self.viterbi[0][state]['viterbi'] = np.log(a) + np.log(b)
             self.viterbi[0][state]['argmax'] = None
+        print('-'*40)
 
-        # fill in
-        for i in range(1, len(sequence)):
-            self.viterbi[i] = dict()
-            for state in self.states:
-                self.viterbi[i][state] = dict()
-                b = self.emission_probabilities.get((state, sequence[i][0]), 1)
+        # fill in for the rest of the steps /words
+        for i in range(1, len(sequence)+1):
+            print('Step: {}'.format(i))
+            if i != (len(sequence)):
+                self.viterbi[i] = dict()
+                for state in self.states:
+                    print('State: {}'.format(state))
+                    self.viterbi[i][state] = dict()
+                    b = self.emission_probabilities.get((state, sequence[i][0]), 1)
 
-                # For each previous state find the max viterbi
+                    # For each previous state find the max viterbi
+                    previous_viterbi_list = list()
+                    previous_states = list()
+                    current_transitions = list()
+
+                    for state_prev in self.viterbi[i - 1]:
+                        if state_prev != '<start>':
+                            previous_states.append(state_prev)
+                            previous_viterbi_list.append(self.viterbi[i - 1][state_prev]['viterbi'])
+                            current_transitions.append(self.transition_probabilities.get((state_prev, state), 1))
+
+                    v_prev, state_prev = self._find_max(previous_viterbi_list, current_transitions)
+
+                    # fill table
+                    self.viterbi[i][state]['viterbi'] = np.log(b) + v_prev
+                    self.viterbi[i][state]['argmax'] = previous_states[state_prev]
+                    print('Viterbi: {}',format(self.viterbi[i][state]['viterbi']))
+
+            else:
+                # final step
+                self.viterbi[i] = dict()
+
                 previous_viterbi_list = list()
                 previous_states = list()
                 current_transitions = list()
+                for state in self.viterbi[i - 1]:
+                    self.viterbi[i][state] = dict()
 
-                for state_prev in self.viterbi[i - 1]:
-                    previous_states.append(state_prev)
-                    previous_viterbi_list.append(self.viterbi[i - 1][state_prev]['viterbi'])
-                    current_transitions.append(self.transition_probabilities.get((state_prev, state), 1))
+                    previous_states.append(state)
+                    previous_viterbi_list.append(self.viterbi[i - 1][state]['viterbi'])
+                    current_transitions.append(self.transition_probabilities.get((state, '<end>'), 1))
 
-                v_prev, state_prev = self._find_max(previous_viterbi_list, current_transitions)
+                    v_prev, state_prev = self._find_max(previous_viterbi_list, current_transitions)
 
-                # fill table
-                self.viterbi[i][state]['viterbi'] = np.log(b) + v_prev
-                self.viterbi[i][state]['argmax'] = previous_states[state_prev]
+                    self.viterbi[i][state]['viterbi'] = v_prev
+                    self.viterbi[i][state]['argmax'] = previous_states[state_prev]
 
     def _get_final_path(self):
         """
@@ -155,11 +184,13 @@ class HMMTagger:
         for s in range(len(self.viterbi) - 1, -1, -1):
             state_list = list()
             viterbi_p = list()
+            transition_a = list()
             for state in self.viterbi[s]:
                 state_list.append(state)
                 viterbi_p.append(self.viterbi[s][state]['viterbi'])
+                transition_a.append(self.transition_probabilities.get((s, '<end>'), 1))
 
-            position = np.argmax(viterbi_p)
+            position = np.argmax(viterbi_p + np.log(transition_a))
             final_path.append(state_list[position])
 
         # swap list
@@ -194,11 +225,11 @@ if __name__ == '__main__':
     data = treebank.tagged_sents()[:3000]
 
     tagger = HMMTagger()
-    tagger.fit(sentences)
+    tagger.fit(cleaned_train_data)
 
-    pprint(tagger.emission_probabilities)
-    print()
-    pprint(tagger.transition_probabilities)
+    # pprint(tagger.emission_probabilities)
+    # print()
+    # pprint(tagger.transition_probabilities)
 
     test_sentences = [[('This', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP'), ('.', 'PUNCT')],
                       [('That', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP')]]
