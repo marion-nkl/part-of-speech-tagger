@@ -18,12 +18,29 @@ class HMMTagger:
         self._word_frequencies = dict()
         self.states = set()
         self._train_data = None
+        self.viterbi = dict()
+
+        self.final_hmm = {0: {'<start>': {'argmax': None, 'viterbi': 2},
+                              'DT': {'argmax': None, 'viterbi': 0.5},
+                              'NNP': {'argmax': None, 'viterbi': 0},
+                              'VBZ': {'argmax': None, 'viterbi': 1}},
+                          1: {'<start>': {'argmax': 'NNP', 'viterbi': 0.0},
+                              'DT': {'argmax': 'NNP', 'viterbi': 0.0},
+                              'NNP': {'argmax': 'DT', 'viterbi': 0.0},
+                              'VBZ': {'argmax': 'DT', 'viterbi': 1.0}},
+                          2: {'<start>': {'argmax': 'NNP', 'viterbi': 0.0},
+                              'DT': {'argmax': 'NNP', 'viterbi': 2.0},
+                              'NNP': {'argmax': 'NNP', 'viterbi': 0.0},
+                              'VBZ': {'argmax': 'NNP', 'viterbi': 1.0}},
+                          3: {'<start>': {'argmax': 'NNP', 'viterbi': 0.0},
+                              'DT': {'argmax': 'NNP', 'viterbi': 2.0},
+                              'NNP': {'argmax': 'NNP', 'viterbi': 0.0},
+                              'VBZ': {'argmax': 'NNP', 'viterbi': 0.0}}}
 
     @staticmethod
     def _pad_sentence(sentence):
         """
         Pad a sentence in order to add starting and end tokens in each sentence
-
         :param sentence: list of tuples with the word of each sentence along with its POS tag
         :return: list of tuples, a padded sentence with start and end tokens
         """
@@ -36,9 +53,7 @@ class HMMTagger:
     def fit(self, data):
         """
         Creates two probability dictionaries storing the POS-to-POS and the POS-to-WORD probabilities
-
-        :param data:
-        :return:
+        :param data: list of lists of tuples, with sentences and their words with their POS tags
         """
         self._train_data = data
 
@@ -77,78 +92,92 @@ class HMMTagger:
                                                            self._state_frequencies[state_word_pair[0]]
 
     @staticmethod
-    def _viterbi_path(current_state_prob, viterbi_previous, transition_prob):
+    def _find_max(viterbi_previous, transition_prob):
         """
-
-        :param current_state_prob:
-        :param viterbi_previous:
-        :param transition_prob:
-        :return:
+        Find the max value kai the max arg for a matrix (output of an element-wise multiplication between previous
+        viterbi probabilities: v, and transitions probabilities: a
+        :param viterbi_previous: list with viterbi probabilities of the previous state
+        :param transition_prob: list with transition probabilities for each previous state to the current
+        :return: the max value and max arg
         """
-        viterbi_current = current_state_prob * np.max(np.multiply(viterbi_previous, transition_prob))
+        v = np.array(viterbi_previous)
+        t = np.array(transition_prob)
+        max_value = np.max(np.multiply(v, t))
+        max_state = np.argmax(np.multiply(v, t))
+        return max_value, max_state
 
-        return viterbi_current
-
-    def function_rec(self, sentence):
-
-        def return_max(x):
-            # print('Max returned {}'.format(x))
-            pass
-
-        def fill_in(x, viterbi_previous, transition_prob):
-            if x > 10:
-                pass
-            else:
-                v_j = self._viterbi_path(5, viterbi_previous, transition_prob)
-
-                fill_in(x + 1, viterbi_previous, transition_prob)
-                return_max(x)
-
-        matrix = dict()
-
-        for word in sentence:
-            v_p = np.array([1, 2, 3])
-            t_p = np.array([1, 2, 3])
-            matrix[word[0]] = dict()
-            fill_in(0, v_p, t_p)
-
-        print(matrix)
-
-    def viterbi(self, sentence):
+    def _viterbi(self, sequence):
         """
-
-        :param sentence:
-        :return:
+        Run forward pass of the Viterbi algorithm
+        :param sequence: list of tuples with words and their tags
         """
-        viterbi = dict()
+        word = sequence[0][0]
+        self.viterbi[0] = dict()
+
+        # initialization
         for state in self.states:
-            viterbi[state] = self.emission_probabilities[(state, sentence[0][0])] * self.transition_probabilities[
-                ('<start>', state)]
-            print('Emission from {} to {}: {}'.format(state, sentence[0][0],
-                                                      self.emission_probabilities[(state, sentence[0][0])]))
+            self.viterbi[0][state] = dict()
+            a = self.transition_probabilities.get(('<start>', state), 0)
+            b = self.emission_probabilities.get((state, word), 0)
 
-    def _run_decoder(self, sentence):
-        """
-        Implements Viterbi algorithm to find the hidden state sequence of the observed sequence
-        :param sentence:
-        :return:
-        """
-        states_list = list(self.states)
-        for word in self._pad_sentence(sentence):
-            print()
-            print('WORD: {}'.format(word[0]))
+            self.viterbi[0][state]['viterbi'] = a * b
+            self.viterbi[0][state]['argmax'] = None
+
+        # fill in
+        for i in range(1, len(sequence)):
+            self.viterbi[i] = dict()
             for state in self.states:
-                print(state)
-                print('State observation likelihood of tag {} to word {}: {}'.format(state, word[0],
-                                                                                     self.emission_probabilities.get(
-                                                                                         (state, word[0]), 0)))
-                for previous_state in self.states:
-                    print('Transition probability of tag {} to tag {}: {}'.format(previous_state, state,
-                                                                                  self.transition_probabilities.get(
-                                                                                      (previous_state, state), 0)))
+                self.viterbi[i][state] = dict()
+                b = self.emission_probabilities.get((state, word), 0)
+
+                # For each previous state find the max viterbi
+                previous_viterbi_list = list()
+                previous_states = list()
+                current_transitions = list()
+                for state_prev in self.viterbi[i - 1]:
+                    previous_states.append(state_prev)
+                    previous_viterbi_list.append(self.viterbi[i - 1][state_prev]['viterbi'])
+                    current_transitions.append(self.transition_probabilities.get((state_prev, state), 0))
+
+                # find max of previous viterbi path and transition probs
+                v_prev, state_prev = self._find_max(previous_viterbi_list, current_transitions)
+
+                # fill table
+                self.viterbi[i][state]['viterbi'] = b * v_prev
+                self.viterbi[i][state]['argmax'] = previous_states[state_prev]
+
+    def _get_final_path(self):
+        """
+        Returns the backtrace path by following backpointers to states back in time
+        :return: list, with the predicted path for the viterbi matrix
+        """
+        final_path = list()
+        for s in range(len(self.final_hmm) - 1, -1, -1):
+            state_list = list()
+            viterbi_p = list()
+            for state in self.final_hmm[s]:
+                state_list.append(state)
+                viterbi_p.append(self.final_hmm[s][state]['viterbi'])
+
+            position = np.argmax(viterbi_p)
+            final_path.append(state_list[position])
+
+        # swap list
+        true_path = list()
+        for i in range(len(final_path) - 1, -1, -1):
+            true_path.append(final_path[i])
+
+        return true_path
 
     def tag(self, sentence):
-        self._run_decoder(sentence)
+        """
+        Implements Viterbi algorithm to find the hidden state sequence of the observed sequence
+        :param sentence: list of tuples with words and their tags
+        :return: list, with the predicted path for the viterbi matrix
+        """
+        self._viterbi(sentence)
+        path = self._get_final_path()
+        return path
 
 
 if __name__ == '__main__':
@@ -163,104 +192,13 @@ if __name__ == '__main__':
 
     tagger = HMMTagger()
     tagger.fit(sentences)
-    #
-    # pprint(tagger.emission_probabilities)
-    # print()
-    # pprint(tagger.transition_probabilities)
-    #
+
+    pprint(tagger.emission_probabilities)
+    print()
+    pprint(tagger.transition_probabilities)
+
     test_sentences = [[('This', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP')],
                       [('This', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP')]]
-    #
-    # # run viterbi algorithm ont he test set to tag it
-    # for sent in test_sentences:
-    #     tagger.tag(sent)
-
-    # tagger.viterbi(test_sentences[0])
-
-    emission = tagger.emission_probabilities
-    transition = tagger.transition_probabilities
-    all_states = tagger.states
-
-
-    def find_max(viterbi_previous, transition_prob):
-        """
-
-        :param viterbi_previous:
-        :param transition_prob:
-        :return:
-        """
-        v = np.array(viterbi_previous)
-        t = np.array(transition_prob)
-        max_value = np.max(np.multiply(v, t))
-        max_state = np.argmax(np.multiply(v, t))
-        return max_value, max_state
-
-
-    viterbi = dict()
-    word = test_sentences[0][0][0]
-    viterbi[0] = dict()
-
-    pprint(emission)
-    print()
-    pprint(transition)
-    print()
-
-    # initialization
-    for state in all_states:
-        viterbi[0][state] = dict()
-        viterbi[0][state]['argmax'] = None
-        # max_v, max_s = find_max()
-        a = transition.get(('<start>', state), 0)
-        b = emission.get((state, word), 0)
-        viterbi[0][state]['viterbi'] = a * b
 
     print()
-
-    # fill in
-    sentence = test_sentences[0]
-    for i in range(1, len(test_sentences[0])):
-        viterbi[i] = dict()
-        for state in all_states:
-            viterbi[i][state] = dict()
-            b = emission.get((state, word), 0)
-
-            # For each previous state find the max viterbi
-            previous_viterbi_list = list()
-            previous_states = list()
-            current_transitions = list()
-            for state_prev in viterbi[i - 1]:
-                previous_states.append(state_prev)
-                previous_viterbi_list.append(viterbi[i - 1][state_prev]['viterbi'])
-                current_transitions.append(transition.get((state_prev, state), 0))
-
-            # find max of previous viterbi path and transition probs
-            v_prev, state_prev = find_max(previous_viterbi_list, current_transitions)
-
-            # fill table
-            viterbi[i][state]['viterbi'] = b * v_prev
-            viterbi[i][state]['argmax'] = previous_states[state_prev]
-
-    print()
-    pprint(viterbi)
-
-    final_hmm = {0: {'<start>': {'argmax': None, 'viterbi': 0},
-                     'DT': {'argmax': None, 'viterbi': 0.5},
-                     'NNP': {'argmax': None, 'viterbi': 0},
-                     'VBZ': {'argmax': None, 'viterbi': 0}},
-                 1: {'<start>': {'argmax': 'NNP', 'viterbi': 0.0},
-                     'DT': {'argmax': 'NNP', 'viterbi': 0.0},
-                     'NNP': {'argmax': 'DT', 'viterbi': 0.0},
-                     'VBZ': {'argmax': 'DT', 'viterbi': 0.0}},
-                 2: {'<start>': {'argmax': 'NNP', 'viterbi': 0.0},
-                     'DT': {'argmax': 'NNP', 'viterbi': 0.0},
-                     'NNP': {'argmax': 'NNP', 'viterbi': 0.0},
-                     'VBZ': {'argmax': 'NNP', 'viterbi': 0.0}},
-                 3: {'<start>': {'argmax': 'NNP', 'viterbi': 0.0},
-                     'DT': {'argmax': 'NNP', 'viterbi': 0.0},
-                     'NNP': {'argmax': 'NNP', 'viterbi': 0.0},
-                     'VBZ': {'argmax': 'NNP', 'viterbi': 0.0}}}
-
-    for s in range(len(final_hmm), -1, -1):
-        print(s)
-
-
+    print(tagger.tag(test_sentences[0]))
