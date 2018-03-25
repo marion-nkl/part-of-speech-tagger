@@ -1,5 +1,6 @@
 from pprint import pprint
 import numpy as np
+from nltk.corpus import treebank
 
 from app.data_fetcher import DataFetcher
 
@@ -11,7 +12,6 @@ class HMMTagger:
 
         # p(word | state) = count(state, word) / count(state)
         self.emission_probabilities = dict()
-
         self.transition_probability_matrix = dict()
 
         self._state_frequencies = dict()
@@ -152,12 +152,12 @@ class HMMTagger:
         :return: list, with the predicted path for the viterbi matrix
         """
         final_path = list()
-        for s in range(len(self.final_hmm) - 1, -1, -1):
+        for s in range(len(self.viterbi) - 1, -1, -1):
             state_list = list()
             viterbi_p = list()
-            for state in self.final_hmm[s]:
+            for state in self.viterbi[s]:
                 state_list.append(state)
-                viterbi_p.append(self.final_hmm[s][state]['viterbi'])
+                viterbi_p.append(self.viterbi[s][state]['viterbi'])
 
             position = np.argmax(viterbi_p)
             final_path.append(state_list[position])
@@ -176,6 +176,7 @@ class HMMTagger:
         :return: list, with the predicted path for the viterbi matrix
         """
         self._viterbi(sentence)
+
         path = self._get_final_path()
         return path
 
@@ -190,15 +191,21 @@ if __name__ == '__main__':
     train_data = DataFetcher.parse_conllu(data_dict['train'])
     cleaned_train_data = DataFetcher.remove_empty_sentences(train_data)
 
-    tagger = HMMTagger()
-    tagger.fit(sentences)
+    data = treebank.tagged_sents()[:3000]
 
-    pprint(tagger.emission_probabilities)
+    tagger = HMMTagger()
+    tagger.fit(cleaned_train_data)
+
+    # pprint(tagger.emission_probabilities)
     print()
-    pprint(tagger.transition_probabilities)
+    # pprint(tagger.transition_probabilities)
 
     test_sentences = [[('This', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP')],
                       [('This', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP')]]
 
     print()
     print(tagger.tag(test_sentences[0]))
+
+    print()
+    pprint(tagger.viterbi)
+
