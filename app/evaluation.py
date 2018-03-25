@@ -38,32 +38,37 @@ def create_report(y_true, y_pred, classes=None):
 
 def crf_tagger_classification_report(y_true, y_pred):
     """
-    Classification report for a list of pos-tags-encoded sequences.
-    It computes token-level metrics
+    Classification report for a list of pos-tags-encoded sequences. It computes token-level metrics
+
+    :param y_true:
+    :param y_pred:
+    :return:
     """
     lb = LabelBinarizer()
 
     # flattens the results for the list of lists of tuples
-    y_true_combined = lb.fit_transform(list(chain.from_iterable(y_true)))
-    y_pred_combined = lb.transform(list(chain.from_iterable(y_pred)))
+    y_true_flat = lb.fit_transform(list(chain.from_iterable(y_true)))
+    y_pred_flat = lb.transform(list(chain.from_iterable(y_pred)))
 
     pos_tags_set = sorted(set(lb.classes_))
     class_indices = {cls: idx for idx, cls in enumerate(lb.classes_)}
 
-    accuracy = accuracy_score(y_true_combined, y_pred_combined)
-    f1 = f1_score(y_true_combined, y_pred_combined, average='weighted')
+    accuracy = accuracy_score(y_true_flat, y_pred_flat)
+    f1 = f1_score(y_true_flat, y_pred_flat, average='weighted')
 
     clf_report = classification_report(
-        y_true_combined,
-        y_pred_combined,
+        y_true_flat,
+        y_pred_flat,
         digits=3,
         labels=[class_indices[cls] for cls in pos_tags_set],
         target_names=pos_tags_set)
 
-    print(" Acc: %f " % accuracy)
-
     return {'accuracy': accuracy,
             'clf_report': clf_report,
+            'y_true_flat': y_true_flat,
+            'y_pred_flat': y_pred_flat,
+            'y_true_size': len(y_true),
+            'y_pred_size': len(y_pred),
             'f1': f1}
 
 
