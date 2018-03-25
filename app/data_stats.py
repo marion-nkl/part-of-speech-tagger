@@ -12,12 +12,14 @@ def plot_data_stats(data):
     :return: plot
     """
     sns.set_style("dark")
-
     f, ax = plt.subplots(figsize=(6, 15))
 
     ax = sns.barplot(x='tag', y='count', data=tags_freqs)
-    ax.set(ylabel="Counts",
-           xlabel="POS Tags")
+
+    ax.axes.set_title("POS Tags Frequencies",fontsize=20)
+    ax.set_xlabel("POS Tags", fontsize=16)
+    ax.set_ylabel("Counts", fontsize=16)
+    ax.tick_params(labelsize=12)
 
     plt.show()
 
