@@ -139,7 +139,6 @@ class HMMTagger:
 
             self.viterbi[0][state]['viterbi'] = np.log(a) + np.log(b)
             self.viterbi[0][state]['argmax'] = None
-
         # fill in for the rest of the steps /words
         for i in range(1, len(sequence)+ 1):
             if i != (len(sequence)):
@@ -175,7 +174,7 @@ class HMMTagger:
                 for state in self.viterbi[i - 1]:
                     previous_states.append(state)
                     previous_viterbi_list.append(self.viterbi[i - 1][state]['viterbi'])
-                    current_transitions.append(self.transition_probabilities.get((state, '<end>'), 1))
+                    current_transitions.append(self.transition_probabilities.get((state, '<end>'), 0.000001))
 
                     self.viterbi[i]["<end>"] = dict()
                     v_prev, state_prev = self._find_max(previous_viterbi_list, current_transitions)
@@ -220,6 +219,7 @@ class HMMTagger:
             position = np.argmax(viterbi_p + np.log(transition_a))
             final_path.append(state_list[position])
 
+
         # swap list
         true_path = list()
         for i in range(len(final_path) - 1, -1, -1):
@@ -234,7 +234,6 @@ class HMMTagger:
         :return: list, with the predicted path for the viterbi matrix
         """
         self._viterbi(sentence)
-
         path = self._get_final_path()
         # return all the path but not the <end> final state
         return path[:-1]
@@ -377,17 +376,26 @@ if __name__ == '__main__':
     # Tag sentences
     results = list()
     true_value = list()
-    for s in cleaned_test_data[:3]:
+
+    for s in cleaned_test_data: #[:100]:
         tag_tuples = tagger.tag(s)
-        if tag_tuples[-1] == '<end>':
-            results.append(tag_tuples[:-1])
+        tag_tuple = list()
+        for tag_tup in tag_tuples:
+            if tag_tup != '<end>':
+                tag_tuple.append(tag_tup)
+            else:
+                break
+        if tag_tuple[-1] == '<end>':
+            results.append(tag_tuple[:-1])
         else:
-            results.append(tag_tuples)
+            results.append(tag_tuple)
+
         true_value.append(extract_pos_tags_from_sentence_token_tuples(s))
 
-    print()
-    pprint(results)
-    print(true_value)
+    # print()
+    # print(true_value)
+    # print(results)
+
 
     pprint(tagger_classification_report(true_value, results))
 
