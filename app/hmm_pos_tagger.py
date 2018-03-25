@@ -128,18 +128,18 @@ class HMMTagger:
             self.viterbi[i] = dict()
             for state in self.states:
                 self.viterbi[i][state] = dict()
-                b = self.emission_probabilities.get((state, word), 0)
+                b = self.emission_probabilities.get((state, sequence[i][0]), 0)
 
                 # For each previous state find the max viterbi
                 previous_viterbi_list = list()
                 previous_states = list()
                 current_transitions = list()
+
                 for state_prev in self.viterbi[i - 1]:
                     previous_states.append(state_prev)
                     previous_viterbi_list.append(self.viterbi[i - 1][state_prev]['viterbi'])
                     current_transitions.append(self.transition_probabilities.get((state_prev, state), 0))
 
-                # find max of previous viterbi path and transition probs
                 v_prev, state_prev = self._find_max(previous_viterbi_list, current_transitions)
 
                 # fill table
@@ -194,11 +194,11 @@ if __name__ == '__main__':
     data = treebank.tagged_sents()[:3000]
 
     tagger = HMMTagger()
-    tagger.fit(cleaned_train_data)
+    tagger.fit(sentences)
 
-    # pprint(tagger.emission_probabilities)
+    pprint(tagger.emission_probabilities)
     print()
-    # pprint(tagger.transition_probabilities)
+    pprint(tagger.transition_probabilities)
 
     test_sentences = [[('This', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP')],
                       [('This', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP')]]
