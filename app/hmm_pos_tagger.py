@@ -1,12 +1,12 @@
 from pprint import pprint
+
+import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.font_manager import FontProperties
 from nltk.corpus import treebank
-from operator import add
 
 from app.data_fetcher import DataFetcher
 from app.evaluation import tagger_classification_report
-from matplotlib.font_manager import FontProperties
-import matplotlib.pyplot as plt
 
 
 class HMMTagger:
@@ -65,46 +65,46 @@ class HMMTagger:
         """
         return [postag for token, postag in sent]
 
-    def fit(self, data):
+    def fit(self, X):
         """
         Creates two probability dictionaries storing the POS-to-POS and the POS-to-WORD probabilities
-        :param data: list of lists of tuples, with sentences and their words with their POS tags
+        :param X: list of lists of tuples, with sentences and their words with their POS tags
         """
-        self._train_data = data
+        self._train_data = X
 
         for sentence in self._train_data:
             new_sentence = self._pad_sentence(sentence)
+
             for i in range(len(new_sentence)):
-                self.states.add(new_sentence[i][1])
+
+                current_state_tag = new_sentence[i][1]
+                state_i_word = new_sentence[i][0]
+
+                self.states.add(current_state_tag)
+
+                self._state_frequencies[current_state_tag] = self._state_frequencies.get(current_state_tag, 0) + 1
+                self._word_frequencies[state_i_word] = self._word_frequencies.get(state_i_word, 0) + 1
+
+                self.emission_probabilities[
+                    current_state_tag, state_i_word] = self.emission_probabilities.get((current_state_tag,
+                                                                                        state_i_word), 0) + 1
 
                 try:
-                    self._state_frequencies[new_sentence[i][1]] += 1
-                except KeyError:
-                    self._state_frequencies[new_sentence[i][1]] = 1
+                    next_state_tag = new_sentence[i + 1][1]
 
-                try:
-                    self._word_frequencies[new_sentence[i][0]] += 1
-                except KeyError:
-                    self._word_frequencies[new_sentence[i][0]] = 1
-
-                try:
-                    self.transition_probabilities[new_sentence[i][1], new_sentence[i + 1][1]] += 1
-                except KeyError:
-                    self.transition_probabilities[new_sentence[i][1], new_sentence[i + 1][1]] = 1
+                    self.transition_probabilities[
+                        current_state_tag, next_state_tag] = self.transition_probabilities.get((current_state_tag,
+                                                                                                next_state_tag), 0) + 1
                 except IndexError:
                     pass
-                try:
-                    self.emission_probabilities[new_sentence[i][1], new_sentence[i][0]] += 1
-                except KeyError:
-                    self.emission_probabilities[new_sentence[i][1], new_sentence[i][0]] = 1
 
         for state_pair in self.transition_probabilities:
-            self.transition_probabilities[state_pair] = self.transition_probabilities[state_pair] / \
-                                                        self._state_frequencies[state_pair[0]]
+            self.transition_probabilities[state_pair] /= self._state_frequencies[state_pair[0]]
 
         for state_word_pair in self.emission_probabilities:
-            self.emission_probabilities[state_word_pair] = self.emission_probabilities[state_word_pair] / \
-                                                           self._state_frequencies[state_word_pair[0]]
+            self.emission_probabilities[state_word_pair] /= self._state_frequencies[state_word_pair[0]]
+
+        print(self.states)
 
         self.states.remove('<start>')
         self.states.remove('<end>')
@@ -114,10 +114,12 @@ class HMMTagger:
         """
         Find the max value kai the max arg for a matrix (output of an element-wise multiplication between previous
         viterbi probabilities: v, and transitions probabilities: a
+
         :param viterbi_previous: list with viterbi log probabilities of the previous state
         :param transition_prob: list with transition probabilities for each previous state to the current
         :return: the max value and max arg
         """
+
         transition_prob_log = list(np.log(transition_prob))
         max_value = np.max(np.add(viterbi_previous, transition_prob_log))
         max_state = np.argmax(np.add(viterbi_previous, transition_prob_log))
@@ -141,7 +143,7 @@ class HMMTagger:
             self.viterbi[0][state]['argmax'] = None
 
         # fill in for the rest of the steps /words
-        for i in range(1, len(sequence)+ 1):
+        for i in range(1, len(sequence) + 1):
             if i != (len(sequence)):
                 self.viterbi[i] = dict()
                 for state in self.states:
@@ -345,6 +347,7 @@ if __name__ == '__main__':
                  [('That', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP')],
                  [('This', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP')]]
 
+
     def extract_pos_tags_from_sentence_token_tuples(sent):
         """
         This function extracts the pos tags (labels in general) from a given iterable of (token, label) tuples.
@@ -353,6 +356,7 @@ if __name__ == '__main__':
         :return: list. An iterable of pos tags.
         """
         return [postag for token, postag in sent]
+
 
     data_dict = DataFetcher.read_data()
     train_data = DataFetcher.parse_conllu(data_dict['train'])
@@ -392,9 +396,6 @@ if __name__ == '__main__':
     pprint(tagger_classification_report(true_value, results))
 
     # tagger.create_benchmark_plot(cleaned_train_data, cleaned_test_data)
-
-
-
 
     # ------------------------------------------------------------------
     # train data
