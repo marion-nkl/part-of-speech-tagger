@@ -1,12 +1,11 @@
-from pprint import pprint
+import matplotlib.pyplot as plt
 import numpy as np
-from nltk.corpus import treebank
-from operator import add
+from matplotlib.font_manager import FontProperties
 
 from app.data_fetcher import DataFetcher
 from app.evaluation import tagger_classification_report
-from matplotlib.font_manager import FontProperties
-import matplotlib.pyplot as plt
+
+plt.rcParams['figure.figsize'] = (16, 8)
 
 
 class HMMTagger:
@@ -42,6 +41,17 @@ class HMMTagger:
                               'VBZ': {'argmax': 'NNP', 'viterbi': 0.0}}}
 
     @staticmethod
+    def extract_pos_tags_from_sentence_token_tuples(sent):
+        """
+        This function extracts the pos tags (labels in general) from a given iterable of (token, label) tuples.
+
+        :param sent: list. An iterable of (word, pos-tag) tuples.
+        :return: list. An iterable of pos tags.
+
+        """
+        return [postag for token, postag in sent]
+
+    @staticmethod
     def _pad_sentence(sentence):
         """
         Pad a sentence in order to add starting and end tokens in each sentence
@@ -55,22 +65,12 @@ class HMMTagger:
 
         return sentence
 
-    @staticmethod
-    def extract_pos_tags_from_sentence_token_tuples(sent):
-        """
-        This function extracts the pos tags (labels in general) from a given iterable of (token, label) tuples.
-
-        :param sent: list. An iterable of (word, pos-tag) tuples.
-        :return: list. An iterable of pos tags.
-        """
-        return [postag for token, postag in sent]
-
-    def fit(self, data):
+    def fit(self, X):
         """
         Creates two probability dictionaries storing the POS-to-POS and the POS-to-WORD probabilities
-        :param data: list of lists of tuples, with sentences and their words with their POS tags
+        :param X: list of lists of tuples, with sentences and their words with their POS tags
         """
-        self._train_data = data
+        self._train_data = X
 
         for sentence in self._train_data:
             new_sentence = self._pad_sentence(sentence)
@@ -140,7 +140,7 @@ class HMMTagger:
             self.viterbi[0][state]['viterbi'] = np.log(a) + np.log(b)
             self.viterbi[0][state]['argmax'] = None
         # fill in for the rest of the steps /words
-        for i in range(1, len(sequence)+ 1):
+        for i in range(1, len(sequence) + 1):
             if i != (len(sequence)):
                 self.viterbi[i] = dict()
                 for state in self.states:
@@ -219,7 +219,6 @@ class HMMTagger:
             position = np.argmax(viterbi_p + np.log(transition_a))
             final_path.append(state_list[position])
 
-
         # swap list
         true_path = list()
         for i in range(len(final_path) - 1, -1, -1):
@@ -238,16 +237,46 @@ class HMMTagger:
         # return all the path but not the <end> final state
         return path[:-1]
 
+    def predict(self, X):
+        """
+
+        :param X:
+        :return:
+        """
+
+        # Tag sentences
+        results = list()
+        true_value = list()
+
+        for sentence in X:
+
+            tag_tuples = self.tag(sentence)
+            tag_tuples_list = list()
+
+            for tag_t in tag_tuples:
+                if tag_t != '<end>':
+                    tag_tuples_list.append(tag_t)
+                else:
+                    break
+
+            if tag_tuples_list[-1] == '<end>':
+                results.append(tag_tuples_list[:-1])
+            else:
+                results.append(tag_tuples_list)
+
+            true_value.append(self.extract_pos_tags_from_sentence_token_tuples(sentence))
+
+        return true_value, results
+
     def create_benchmark_plot(self,
                               train,
                               test,
                               n_splits=20,
-                              params=None,
                               plot_outfile=None,
                               y_ticks=0.025,
-                              min_y_lim=0.4):
+                              min_y_lim=0.0):
         """
-        Thsi method runs benchmarking for a crf model in order to check whether the classifier is learing.
+        This method runs benchmarking for a crf model in order to check whether the classifier is learning.
         Also, learning curves are created.
 
         :param train: list. A list of lists of (word, pos-tag) tuples.
@@ -298,14 +327,16 @@ class HMMTagger:
 
             results['train_size'].append(len(train_x_part))
 
-            true_values_test, predictions_test = self.predict(train_x_part, test)
-            result_on_test = tagger_classification_report(true_values_test, predictions_test)
+            self.fit(X=train_x_part)
+
+            y_test_true, y_test_pred = self.predict(test)
+            result_on_test = tagger_classification_report(y_test_true, y_test_pred)
 
             print('Result on test: {}'.format(result_on_test['accuracy']))
             results['on_test'].append(result_on_test['accuracy'])
 
-            true_values_train, predictions_train = self.predict(train_x_part, train_x_part)
-            result_on_train = tagger_classification_report(true_values_train, predictions_train)
+            y_train_true, y_train_pred = self.predict(train_x_part)
+            result_on_train = tagger_classification_report(y_train_true, y_train_pred)
 
             print('Result on train: {}'.format(result_on_train['accuracy']))
             results['on_train'].append(result_on_train['accuracy'])
@@ -322,57 +353,12 @@ class HMMTagger:
 
         return results
 
-    @staticmethod
-    def predict(train, test):
-        """
 
-        :param train:
-        :param test:
-        :return:
-        """
-        tagger = HMMTagger()
-        tagger.fit(train)
+def main():
+    """
 
-        # Tag sentences
-        results = list()
-        true_value = list()
-
-        for s in test:
-            tag_tuples = tagger.tag(s)
-            tag_tuple = list()
-            for tag_tup in tag_tuples:
-                if tag_tup != '<end>':
-                    tag_tuple.append(tag_tup)
-                else:
-                    break
-            if tag_tuple[-1] == '<end>':
-                results.append(tag_tuple[:-1])
-            else:
-                results.append(tag_tuple)
-
-            true_value.append(extract_pos_tags_from_sentence_token_tuples(s))
-
-            return true_value, results
-
-
-
-
-
-if __name__ == '__main__':
-    # create a dict with pos-to-pos probabilities and pos-to-word probabilities on the training set
-    sentences = [[('This', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP'), ('.', 'PUNCT')],
-                 [('That', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP')],
-                 [('This', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP')]]
-
-    def extract_pos_tags_from_sentence_token_tuples(sent):
-        """
-        This function extracts the pos tags (labels in general) from a given iterable of (token, label) tuples.
-
-        :param sent: list. An iterable of (word, pos-tag) tuples.
-        :return: list. An iterable of pos tags.
-        """
-        return [postag for token, postag in sent]
-
+    :return:
+    """
     data_dict = DataFetcher.read_data()
     train_data = DataFetcher.parse_conllu(data_dict['train'])
     dev_data = DataFetcher.parse_conllu(data_dict['dev'])
@@ -381,52 +367,42 @@ if __name__ == '__main__':
     cleaned_train_data = DataFetcher.remove_empty_sentences(train_data + dev_data)
     cleaned_test_data = DataFetcher.remove_empty_sentences(test_data)
 
-    tagger = HMMTagger()
-    tagger.fit(cleaned_train_data)
+    tagger_obj = HMMTagger()
+    tagger_obj.fit(cleaned_train_data)
 
-    # Tag test sentences
-    results_train = list()
-    true_value_train = list()
+    y_true, y_pred = tagger_obj.predict(X=cleaned_test_data)
 
-    for s in cleaned_train_data:
-        tag_tuples = tagger.tag(s)
-        tag_tuple = list()
-        for tag_tup in tag_tuples:
-            if tag_tup != '<end>':
-                tag_tuple.append(tag_tup)
-            else:
-                break
-        if tag_tuple[-1] == '<end>':
-            results_train.append(tag_tuple[:-1])
-        else:
-            results_train.append(tag_tuple)
+    tagger_metadata = tagger_classification_report(y_true, y_pred)
 
-        true_value_train.append(extract_pos_tags_from_sentence_token_tuples(s))
+    print(tagger_metadata['clf_report'])
 
-    pprint(tagger_classification_report(true_value_train, results_train)['clf_report'])
-
-    tagger.create_benchmark_plot(cleaned_train_data, cleaned_test_data)
+    return tagger_metadata
 
 
-    # ------------------------------------------------------------------
-    # train data
-    # data_dict = DataFetcher.read_data()
-    # train_data = DataFetcher.parse_conllu(data_dict['train'])
-    # dev_data = DataFetcher.parse_conllu(data_dict['dev'])
-    # cleaned_train_data = DataFetcher.remove_empty_sentences(train_data + dev_data)
-    # # fit HMM model
-    # tagger = HMMTagger()
-    # tagger.fit(cleaned_train_data)
-    #
-    # test_data = DataFetcher.parse_conllu(data_dict['test'])
-    # cleaned_test_data = DataFetcher.remove_empty_sentences(test_data)
-    #
-    # # Tag sentences
-    # results = list()
-    # true_value = list()
-    # for s in cleaned_test_data:
-    #     results.append(tagger.tag(s))
-    #     true_value.append(extract_pos_tags_from_sentence_token_tuples(s))
-    #
-    # # evaluation report
-    # pprint(tagger_classification_report(true_value, results))
+def main_benchmark():
+    """
+
+    :return:
+    """
+    data_dict = DataFetcher.read_data()
+    train_data = DataFetcher.parse_conllu(data_dict['train'])
+    dev_data = DataFetcher.parse_conllu(data_dict['dev'])
+    test_data = DataFetcher.parse_conllu(data_dict['test'])
+
+    cleaned_train_data = DataFetcher.remove_empty_sentences(train_data + dev_data)
+    cleaned_test_data = DataFetcher.remove_empty_sentences(test_data)
+
+    obj = HMMTagger()
+
+    obj.create_benchmark_plot(train=cleaned_train_data,
+                              test=cleaned_test_data,
+                              n_splits=20)
+
+
+if __name__ == '__main__':
+    # # create a dict with pos-to-pos probabilities and pos-to-word probabilities on the training set
+    # sentences = [[('This', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP'), ('.', 'PUNCT')],
+    #              [('That', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP')],
+    #              [('This', 'DT'), ('is', 'VBZ'), ('a', 'DT'), ('sentence', 'NNP')]]
+
+    main_benchmark()
